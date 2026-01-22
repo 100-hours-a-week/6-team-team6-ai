@@ -1,0 +1,19 @@
+[project]
+name = "billage_ai"
+version = "0.1.0"
+description = "AI service for billage project"
+requires-python = ">=3.10"
+
+# Ruff
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+#Semantic Release
+[tool.semantic_release]
+branch = "main"
+version_variable = "app/main.py:__version__"
+upload_to_release = true
