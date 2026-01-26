@@ -6,6 +6,9 @@ on:
     types: [completed]
     branches: [main]
 
+env:
+  APP_NAME: billage
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -14,38 +17,68 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # CI가 테스트를 마친 그 시점의 커밋을 가져옴
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get AI Server IP
+        id: get-ip
+        run: |
+          TARGET_TAG="${{ env.APP_NAME }}-prod-main-server"
+          
+          IP=$(aws ec2 describe-instances \
+            --filters \
+              "Name=tag:Name,Values=$TARGET_TAG" \
+              "Name=tag:Environment,Values=prod" \
+              "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+
+          if [ "$IP" == "None" ] || [ -z "$IP" ]; then
+            echo "::error::AI Server instance not found!"
+            exit 1
+          fi
+          echo "Found AI Server IP: $IP"
+          echo "server_ip=$IP" >> $GITHUB_OUTPUT
 
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ steps.get-ip.outputs.server_ip }} >> ~/.ssh/known_hosts
 
       - name: Clean deploy directory on EC2
         run: |
-          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ steps.get-ip.outputs.server_ip }} \
             'rm -rf /home/ubuntu/deploy/ai/*'
 
       - name: Upload AI code
         run: |
           scp -i ~/.ssh/deploy_key -r app/*.py requirements.txt \
-            ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/deploy/ai/
+            ubuntu@${{ steps.get-ip.outputs.server_ip }}:/home/ubuntu/deploy/ai/
 
       - name: Deploy AI service
         run: |
-          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ steps.get-ip.outputs.server_ip }} \
             'bash /home/ubuntu/scripts/deploy.sh ai'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
       - name: Health check
         run: |
-          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ steps.get-ip.outputs.server_ip }} \
             'bash /home/ubuntu/scripts/health_check.sh ai'
 
       - name: Rollback on failure
         if: failure()
         run: |
-          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ steps.get-ip.outputs.server_ip }} \
             'bash /home/ubuntu/scripts/rollback.sh ai'
