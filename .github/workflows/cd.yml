@@ -50,7 +50,6 @@ jobs:
 
       - name: Setup SSH
         run: |
-          export PATH=$PATH:/home/ubuntu/.npm-global/bin:/home/ubuntu/.nvm/versions/node/*/bin
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
@@ -69,7 +68,7 @@ jobs:
       - name: Deploy AI service
         run: |
           ssh -i ~/.ssh/deploy_key ubuntu@${{ steps.get-ip.outputs.server_ip }} \
-            'bash /home/ubuntu/scripts/deploy.sh ai'
+            'source ~/.nvm/nvm.sh && bash /home/ubuntu/scripts/deploy.sh ai'
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
 
