@@ -1,0 +1,51 @@
+name: AI Service CD
+
+on:
+  workflow_run:
+    workflows: ["AI Service CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Clean deploy directory on EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+            'rm -rf /home/ubuntu/deploy/ai/*'
+
+      - name: Upload AI code
+        run: |
+          scp -i ~/.ssh/deploy_key -r app/*.py requirements.txt \
+            ubuntu@${{ secrets.EC2_HOST }}:/home/ubuntu/deploy/ai/
+
+      - name: Deploy AI service
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+            'bash /home/ubuntu/scripts/deploy.sh ai'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+
+      - name: Health check
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+            'bash /home/ubuntu/scripts/health_check.sh ai'
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.EC2_HOST }} \
+            'bash /home/ubuntu/scripts/rollback.sh ai'
