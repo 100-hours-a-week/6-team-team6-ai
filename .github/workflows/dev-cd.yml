@@ -1,22 +1,16 @@
-# .github/workflows/ai-cd-dev.yml
 name: AI Service CD (Dev)
 
 on:
-  workflow_run:
-    workflows: ["AI Service CI"]
-    types: [completed]
+  push:
     branches: [develop]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup SSH
         run: |
@@ -36,6 +30,7 @@ jobs:
           # 의존성 설치 & pm2 재시작
           ssh -i ~/.ssh/deploy_key ubuntu@$SERVER << 'EOF'
             cd /opt/billage/ai
+            python3 -m venv venv
             source venv/bin/activate
             pip install -r requirements.txt -q
             
@@ -72,7 +67,7 @@ jobs:
                 "color": 15158332,
                 "fields": [
                   {"name": "Branch", "value": "develop", "inline": true},
-                  {"name": "Commit", "value": "`${{ github.event.workflow_run.head_sha }}`", "inline": true}
+                  {"name": "Commit", "value": "`${{ github.sha }}`", "inline": true}
                 ],
                 "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
               }]
