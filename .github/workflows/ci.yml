@@ -1,8 +1,6 @@
 name: AI Service CI
 
 on:
-  push:
-    branches: [main, develop, feat/cicd/22]
   pull_request:
     branches: [main, develop]
 

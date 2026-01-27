@@ -1,10 +1,8 @@
 name: AI Service CD
 #
 on:
-  workflow_run:
-    workflows: ["AI Service CI"]
-    types: [completed]
-    branches: [main, feat/cicd/22]
+  push:
+    branches: [main]
 
 env:
   APP_NAME: billage
@@ -12,14 +10,10 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          # CI가 테스트를 마친 그 시점의 커밋을 가져옴
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
