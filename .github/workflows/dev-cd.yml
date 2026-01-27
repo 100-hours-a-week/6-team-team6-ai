@@ -1,0 +1,80 @@
+# .github/workflows/ai-cd-dev.yml
+name: AI Service CD (Dev)
+
+on:
+  workflow_run:
+    workflows: ["AI Service CI"]
+    types: [completed]
+    branches: [develop]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEV_EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEV_EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy AI Service
+        run: |
+          SERVER="${{ secrets.DEV_EC2_HOST }}"
+          
+          # 코드 업로드
+          scp -i ~/.ssh/deploy_key -r app/*.py requirements.txt \
+            ubuntu@$SERVER:/opt/billage/ai/
+          
+          # 의존성 설치 & pm2 재시작
+          ssh -i ~/.ssh/deploy_key ubuntu@$SERVER << 'EOF'
+            cd /opt/billage/ai
+            source venv/bin/activate
+            pip install -r requirements.txt -q
+            
+            # pm2 프로세스 존재하면 재시작, 없으면 새로 시작
+            if pm2 describe billage-ai > /dev/null 2>&1; then
+              pm2 restart billage-ai
+            else
+              pm2 start "venv/bin/uvicorn main:app --host 0.0.0.0 --port 5000" --name billage-ai
+            fi
+          EOF
+
+      - name: Health Check
+        run: |
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.DEV_EC2_HOST }}:5000/ai/ping || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo " AI Service healthy"
+              exit 0
+            fi
+            echo " Waiting... ($i/10)"
+            sleep 3
+          done
+          echo " Health check failed"
+          exit 1
+
+      - name: Notify Discord on Failure
+        if: failure()
+        run: |
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d '{
+              "embeds": [{
+                "title": " AI Dev 배포 실패",
+                "color": 15158332,
+                "fields": [
+                  {"name": "Branch", "value": "develop", "inline": true},
+                  {"name": "Commit", "value": "`${{ github.event.workflow_run.head_sha }}`", "inline": true}
+                ],
+                "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+              }]
+            }' \
+            ${{ secrets.DISCORD_WEBHOOK }}
