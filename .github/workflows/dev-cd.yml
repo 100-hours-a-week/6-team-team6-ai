@@ -35,6 +35,7 @@ jobs:
           # 의존성 설치 & pm2 재시작
           ssh -i ~/.ssh/deploy_key ubuntu@$SERVER << 'EOF'
             cd /opt/billage/ai
+            python3 -m venv venv
             source venv/bin/activate
             pip install -r requirements.txt -q
             
