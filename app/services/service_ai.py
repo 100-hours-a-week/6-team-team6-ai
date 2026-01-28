@@ -41,7 +41,7 @@ class QwenServiceAI:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{os.getenv('QWEN_POD_URL')}/v1/chat/completions",
+                    f"{os.getenv('QWEN_URL')}/v1/chat/completions",
                     headers={"Authorization": f"Bearer {os.getenv('RUNPOD_QWEN_KEY')}"},
                     json=payload,
                     timeout=60
