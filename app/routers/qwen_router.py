@@ -14,7 +14,7 @@ router = APIRouter(
 service_qwen = QwenServiceAI()
 
 # Qwen 헬스체크
-@router.get("/health")
+@router.get("/qwen/health")
 async def health():
     headers = {
         "Authorization": f"Bearer {os.getenv('RUNPOD_QWEN_KEY')}",
