@@ -1,0 +1,29 @@
+name: AI Service CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Ruff Linter
+        uses: astral-sh/ruff-action@v1
+        with:
+          args: "check --select I ."
+
+      - name: Run Ruff Formatter
+        uses: astral-sh/ruff-action@v1
+        with:
+          # 포맷 검사
+          args: "format --check ."
