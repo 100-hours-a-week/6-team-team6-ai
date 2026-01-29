@@ -23,7 +23,7 @@ class MockUploadFile:
 service = QwenServiceAI()
 
 # 핸들러
-async def handler_async(job) :
+async def handler(job) :
     job_input = job.get("input", {})
 
     base64_images = job_input.get("images", [])
@@ -38,9 +38,6 @@ async def handler_async(job) :
 
     except Exception as e:
         return { "error": f"서버 내 오류가 발생했습니다 : {e}" }
-
-def handler(job):
-    return asyncio.run(handler_async(job))
 
 if __name__ == "__main__":
     runpod.serverless.start({"handler": handler})
