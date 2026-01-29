@@ -26,32 +26,45 @@ class QwenServiceAI:
                 "image_url": {"url": f"data:image/jpeg;base64,{b64img}"}
             })
 
-        # 페이로드
+        # 페이로드: 서버리스 버전(input 추가)
         payload = {
-            "model": "Qwen/Qwen2.5-VL-7B-Instruct",
-            "messages": [
-                {"role": "system", "content": GENERATE_POST_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
-            "response_format": {"type": "json_object"},
-            "max_tokens": 1000
+            "input": {
+                "messages": [
+                    {"role": "system", "content": GENERATE_POST_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "sampling_params": {"max_tokens": 1000}
+            }
         }
 
+        # URL: 서버리스 버전. runsync로 동기처리.
+        target_url = f"https://api.runpod.ai/v2/{os.getenv("ENDPOINT_ID")}/runsync"
+
+
         # Qwen 호출
+        # url 변경, 임의 식별 키 -> 런팟 API 유저 고유 키, 타임아웃 시간 늘리기
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    f"{os.getenv('QWEN_URL')}/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {os.getenv('RUNPOD_QWEN_KEY')}"},
+                    target_url,
+                    headers={"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"},
                     json=payload,
-                    timeout=60
+                    timeout=90
                 )
 
                 response.raise_for_status()
                 result = response.json()
 
-                # content만
-                content_text = result["choices"][0]["message"]["content"]
+                if result.get("status") != "COMPLETED":
+                    raise Exception(f"런팟 작업 실패: {result.get('error')}")
+
+                # content만 : 서버리스는 output에서 찾도록 수정.
+                choices = result["output"]["choices"]
+
+                if not choices:
+                    raise Exception(f"모델 응답 형식이 올바르지 않습니다: {choices}")
+
+                content_text = choices[0]["message"]["content"]
                 return json.loads(content_text)
 
             except httpx.HTTPStatusError as e:
