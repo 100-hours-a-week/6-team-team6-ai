@@ -33,12 +33,12 @@ class QwenServiceAI:
                     {"role": "system", "content": GENERATE_POST_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                "sampling_params": {"max_tokens": 1000}
+                "sampling_params": {"max_tokens": 1000, "temperature": 0.2}
             }
         }
 
         # URL: 서버리스 버전. runsync로 동기처리.
-        target_url = f"https://api.runpod.ai/v2/{os.getenv("ENDPOINT_ID")}/runsync"
+        target_url = f"https://api.runpod.ai/v2/{os.getenv("QWEN_ENDPOINT_ID")}/runsync"
 
 
         # Qwen 호출
