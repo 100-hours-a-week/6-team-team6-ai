@@ -2,7 +2,9 @@ import base64
 import os
 import sys
 import runpod
+import httpx
 
+"""
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
@@ -37,6 +39,23 @@ async def handler(job) :
 
     except Exception as e:
         return { "error": f"서버 내 오류가 발생했습니다 : {e}" }
+"""
+
+# vLLM 리퀘스트 타입 이슈: 새로운 수동 핸들러 방식 시도중. . .
+async def handler(job):
+    job_input = job.get("input", {})
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                "http://127.0.0.1:8000/v1/chat/completions",
+                json = job_input,
+                timeout = 120
+            )
+            return response.json()
+
+        except Exception as e:
+            return {"error": f"vLLM Proxy 에러: {e}"}
 
 if __name__ == "__main__":
     runpod.serverless.start({"handler": handler})
