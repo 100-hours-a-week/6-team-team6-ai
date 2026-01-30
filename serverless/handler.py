@@ -1,7 +1,6 @@
 import base64
 import os
 import sys
-import asyncio
 import runpod
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -41,9 +40,5 @@ async def handler(job) :
 
 if __name__ == "__main__":
     runpod.serverless.start({"handler": handler})
-
-
-
-
 
 

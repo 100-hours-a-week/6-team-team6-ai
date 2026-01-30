@@ -18,17 +18,17 @@ class QwenServiceAI:
         base64_image = await asyncio.gather(*image_list)
 
         # 페이로드 메세지 구성
-        user_prompt = [{"type": "text",
-                        "text": "이미지 분석 후 대여 게시글을 작성하세요."}]
+        user_prompt = [{"type": "text", "text": "이미지 분석 후 대여 게시글을 작성하세요."}]
         for b64img in base64_image:
             user_prompt.append({
                 "type": "image_url",
                 "image_url": {"url": f"data:image/jpeg;base64,{b64img}"}
             })
 
-        # 페이로드: 서버리스 버전(input 추가)
+        # 페이로드: 서버리스 버전(vLLM 내장 핸들러용: input 추가)
         payload = {
             "input": {
+                "model": "Qwen/Qwen2.5-VL-7B-Instruct",
                 "messages": [
                     {"role": "system", "content": GENERATE_POST_PROMPT},
                     {"role": "user", "content": user_prompt}
@@ -49,7 +49,7 @@ class QwenServiceAI:
                     target_url,
                     headers={"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"},
                     json=payload,
-                    timeout=90
+                    timeout=120
                 )
 
                 response.raise_for_status()
@@ -80,7 +80,7 @@ class QwenServiceAI:
         image_data = await file.read()
         # 리사이징 : 테스트 기반 720x720 (640까지 가도 괜찮을 것)
         image = Image.open(io.BytesIO(image_data))
-        image.thumbnail((720, 720))
+        image.thumbnail((640, 640))
         # 바이너리 인코딩
         image_buffer = io.BytesIO()
         image.save(image_buffer, format='JPEG', quality=85)  # 포맷,퀄리티는 변동할 수 있음...
