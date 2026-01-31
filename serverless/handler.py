@@ -3,6 +3,8 @@ import os
 import sys
 import runpod
 import httpx
+import asyncio
+import time
 
 """
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -40,6 +42,20 @@ async def handler(job) :
     except Exception as e:
         return { "error": f"서버 내 오류가 발생했습니다 : {e}" }
 """
+
+# 엔진 준비 확인
+async def wait_for_vllm():
+    async with httpx.AsyncClient() as client:
+        while True:
+            try:
+                response = await client.get("http://127.0.0.1:8000/v1/models", timeout=1.0)
+                if response.status_code == 200:
+                    print("vLLM 엔진이 성공적으로 준비되었습니다!")
+                    break
+            except Exception:
+                print("vLLM 엔진 로딩 중... (8000번 포트 대기 중)")
+                await asyncio.sleep(5)  # 5초마다 재시도
+
 
 # vLLM 리퀘스트 타입 이슈: 새로운 수동 핸들러 방식 시도중. . .
 async def handler(job):
