@@ -7,4 +7,4 @@ RUN pip3 install --no-cache-dir runpod
 COPY . .
 
 # 핸들러 요청
-CMD ["python", "-u", "serverless/handler.py"]
+CMD ["python3", "-u", "serverless/handler.py"]
