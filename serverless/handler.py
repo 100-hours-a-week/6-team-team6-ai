@@ -43,31 +43,38 @@ async def handler(job) :
         return { "error": f"서버 내 오류가 발생했습니다 : {e}" }
 """
 
+VLLM_API_KEY = os.environ.get("VLLM_API_KEY")
+
 # 엔진 준비 확인
 async def wait_for_vllm():
     async with httpx.AsyncClient() as client:
+        headers = {"Authorization": f"Bearer {VLLM_API_KEY}"}
         while True:
             try:
-                response = await client.get("http://127.0.0.1:8000/v1/models", timeout=1.0)
+                response = await client.get("http://127.0.0.1:8000/v1/models", headers=headers, timeout=1.0)
                 if response.status_code == 200:
-                    print("vLLM 엔진이 성공적으로 준비되었습니다!")
+                    print("vLLM 엔진이 성공적으로 준비되었습니다!", flush=True)
                     break
+                elif response.status_code == 401:
+                    print(">>> 인증 에러 발생! API 키를 다시 확인하세요.", flush=True)
             except Exception:
-                print("vLLM 엔진 로딩 중... (8000번 포트 대기 중)")
-                await asyncio.sleep(5)  # 5초마다 재시도
+                print("vLLM 엔진 로딩 중... (8000번 포트 대기 중)", flush=True)
+                await asyncio.sleep(10)  # 5초마다 재시도
 
 
 # vLLM 리퀘스트 타입 이슈: 새로운 수동 핸들러 방식 시도중. . .
 async def handler(job):
-    print("!!! 핸들러가 호출되었습니다 !!!")  # 이 로그가 찍히는지 확인용
+    print("핸들러 호출 완료")
     await wait_for_vllm()
     job_input = job.get("input", {})
+    headers = {"Authorization": f"Bearer {VLLM_API_KEY}"}
 
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
                 "http://127.0.0.1:8000/v1/chat/completions",
                 json = job_input,
+                headers = headers,
                 timeout = 120
             )
             return response.json()
