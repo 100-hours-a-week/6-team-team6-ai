@@ -33,12 +33,13 @@ class QwenServiceAI:
                     {"role": "system", "content": GENERATE_POST_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
-                "sampling_params": {"max_tokens": 1000, "temperature": 0.2}
+                "max_tokens": 512,
+                "temperature": 0.2
             }
         }
 
         # URL: 서버리스 버전. runsync로 동기처리.
-        target_url = f"https://api.runpod.ai/v2/{os.getenv("QWEN_ENDPOINT_ID")}/runsync"
+        target_url = f"https://api.runpod.ai/v2/{os.getenv('QWEN_ENDPOINT_ID')}/runsync"
 
 
         # Qwen 호출
@@ -78,12 +79,12 @@ class QwenServiceAI:
     async def preprocess_image(self, file: UploadFile) -> str:
         # 디코딩
         image_data = await file.read()
-        # 리사이징 : 테스트 기반 720x720 (640까지 가도 괜찮을 것)
+        # 리사이징 : 테스트 기반 640x640
         image = Image.open(io.BytesIO(image_data))
         image.thumbnail((640, 640))
         # 바이너리 인코딩
         image_buffer = io.BytesIO()
-        image.save(image_buffer, format='JPEG', quality=85)  # 포맷,퀄리티는 변동할 수 있음...
+        image.save(image_buffer, format='JPEG', quality=80)  # 포맷,퀄리티는 변동할 수 있음...
         # Base64 변환
         resized_binary = image_buffer.getvalue()
         base64_image = base64.b64encode(resized_binary).decode('UTF-8')
