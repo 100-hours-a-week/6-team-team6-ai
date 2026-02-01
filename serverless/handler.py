@@ -59,6 +59,8 @@ async def wait_for_vllm():
 
 # vLLM 리퀘스트 타입 이슈: 새로운 수동 핸들러 방식 시도중. . .
 async def handler(job):
+    print("!!! 핸들러가 호출되었습니다 !!!")  # 이 로그가 찍히는지 확인용
+    await wait_for_vllm()
     job_input = job.get("input", {})
 
     async with httpx.AsyncClient() as client:
