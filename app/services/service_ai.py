@@ -3,6 +3,7 @@ import os
 import base64
 import httpx
 import json
+import re
 
 from fastapi import UploadFile, HTTPException
 
@@ -11,6 +12,12 @@ from PIL import Image
 
 import asyncio
 
+# 추가: response에서 json 추출
+def extract_json(text: str):
+    match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+    if match:
+        return match.group(1)
+    return text
 
 class QwenServiceAI:
     async def generate_post(self, images: list[UploadFile]):
@@ -66,7 +73,13 @@ class QwenServiceAI:
                     raise Exception(f"모델 응답 형식이 올바르지 않습니다: {choices}")
 
                 content_text = choices[0]["message"]["content"]
-                return json.loads(content_text)
+                try:
+                    cleaned_json = extract_json(content_text)
+                    return json.loads(cleaned_json)
+                except json.JSONDecodeError:
+                    # 실패 -> JSON 파싱 에러
+                    raise Exception(f"JSON 파싱 실패. 원본 response: {content_text}")
+
 
             except httpx.HTTPStatusError as e:
                 error_detail = e.response.json() if e.response.content else "런팟 서버 오류"

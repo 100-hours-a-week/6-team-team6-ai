@@ -17,23 +17,21 @@ service_qwen = QwenServiceAI()
 @router.get("/qwen/health")
 async def health():
     headers = {
-        "Authorization": f"Bearer {os.getenv('RUNPOD_QWEN_KEY')}",
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
+        #"Content-Type": "application/json"
     }
+    endpoint_id = os.getenv('QWEN_ENDPOINT_ID')
     async with httpx.AsyncClient() as client:
         try:
-            target_url = f"{os.getenv('QWEN_POD_URL')}/v1/models"
+            target_url = f"https://api.runpod.ai/v2/{endpoint_id}/health"
             resp = await client.get(target_url, headers=headers, timeout=10.0)
 
-            if resp.status_code == 200:
-                return {
-                    "status": "ok",
-                    "remote_model": resp.json()["data"][0]["id"],
-                    "message": "Qwen 연결 완료.."
-                }
+            return {
+                "status": "ok" if resp.status_code == 200 else "error",
+                "message": "Qwen 연결 완료"
+            }
         except Exception as e:
-
-            return {"status": "error", "message": f"런팟 연결 실패: {str(e)}"}
+            return {"status": "error", "message": f"런팟 엔드포인트 접근 실패: {str(e)}"}
 
 
 # Qwen 게시글 생성 api
