@@ -27,13 +27,18 @@ jobs:
           scp -i ~/.ssh/deploy_key -r app/*.py requirements.txt \
             ubuntu@$SERVER:/opt/billage/ai/
           
+          # 환경 변수 파일 생성
+          ssh -i ~/.ssh/deploy_key ubuntu@$SERVER \
+            "echo 'QWEN_ENDPOINT_ID=${{ secrets.QWEN_ENDPOINT_ID }}' > /opt/billage/ai/.env && \
+             echo 'RUNPOD_API_KEY=${{ secrets.RUNPOD_API_KEY }}' >> /opt/billage/ai/.env"
+
           # 의존성 설치 & pm2 재시작
           ssh -i ~/.ssh/deploy_key ubuntu@$SERVER << 'EOF'
             cd /opt/billage/ai
             python3 -m venv venv
             source venv/bin/activate
             pip install -r requirements.txt -q
-            
+
             # pm2 프로세스 존재하면 재시작, 없으면 새로 시작
             if pm2 describe billage-ai > /dev/null 2>&1; then
               pm2 restart billage-ai

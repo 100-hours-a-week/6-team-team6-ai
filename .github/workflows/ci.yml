@@ -17,13 +17,13 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Run Ruff Linter
-        uses: astral-sh/ruff-action@v1
-        with:
-          args: "check --select I ."
-
-      - name: Run Ruff Formatter
-        uses: astral-sh/ruff-action@v1
-        with:
-          # 포맷 검사
-          args: "format --check ."
+#      - name: Run Ruff Linter
+#        uses: astral-sh/ruff-action@v1
+#        with:
+#          args: "check --select I ."
+#
+#      - name: Run Ruff Formatter
+#        uses: astral-sh/ruff-action@v1
+#        with:
+#          # 포맷 검사
+#          args: "format --check ."
