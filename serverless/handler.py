@@ -1,10 +1,8 @@
-import base64
-import os
-import sys
-import runpod
-import httpx
 import asyncio
-import time
+import os
+
+import httpx
+import runpod
 
 """
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,7 +49,8 @@ async def wait_for_vllm():
         headers = {"Authorization": f"Bearer {VLLM_API_KEY}"}
         while True:
             try:
-                response = await client.get("http://127.0.0.1:8000/v1/models", headers=headers, timeout=1.0)
+                response = await client.get("http://127.0.0.1:8000/v1/models",
+                                            headers=headers, timeout=1.0)
                 if response.status_code == 200:
                     print("vLLM 엔진이 성공적으로 준비되었습니다!", flush=True)
                     break

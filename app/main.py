@@ -1,9 +1,8 @@
 import uvicorn
-from fastapi import FastAPI
 from dotenv import load_dotenv
+from fastapi import FastAPI
 
 from app.routers import qwen_router
-
 
 load_dotenv()
 app = FastAPI()

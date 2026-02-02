@@ -1,16 +1,16 @@
-import io
-import os
+import asyncio
 import base64
-import httpx
+import io
 import json
+import os
 import re
 
-from fastapi import UploadFile, HTTPException
-
-from app.prompts.generate_prompt import GENERATE_POST_PROMPT
+import httpx
+from fastapi import HTTPException, UploadFile
 from PIL import Image
 
-import asyncio
+from app.prompts.generate_prompt import GENERATE_POST_PROMPT
+
 
 # 추가: response에서 json 추출
 def extract_json(text: str):
@@ -25,7 +25,10 @@ class QwenServiceAI:
         base64_image = await asyncio.gather(*image_list)
 
         # 페이로드 메세지 구성
-        user_prompt = [{"type": "text", "text": "이미지 분석 후 대여 게시글을 작성하세요."}]
+        user_prompt = [{
+            "type": "text",
+            "text": "이미지 분석 후 대여 게시글을 작성하세요."
+        }]
         for b64img in base64_image:
             user_prompt.append({
                 "type": "image_url",
@@ -82,11 +85,16 @@ class QwenServiceAI:
 
 
             except httpx.HTTPStatusError as e:
-                error_detail = e.response.json() if e.response.content else "런팟 서버 오류"
-                raise HTTPException(status_code=e.response.status_code, detail=error_detail)
+                if e.response.content:
+                    error_detail = e.response.json()
+                else:
+                    error_detail = "런팟 서버 오류"
+                raise HTTPException(status_code=e.response.status_code,
+                                    detail=error_detail)
 
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"알 수 없는 오류: {str(e)}")
+                raise HTTPException(status_code=500,
+                                    detail=f"알 수 없는 오류: {str(e)}")
 
 
     async def preprocess_image(self, file: UploadFile) -> str:
@@ -97,7 +105,8 @@ class QwenServiceAI:
         image.thumbnail((640, 640))
         # 바이너리 인코딩
         image_buffer = io.BytesIO()
-        image.save(image_buffer, format='JPEG', quality=80)  # 포맷,퀄리티는 변동할 수 있음...
+        # 포맷,퀄리티는 성능따라 변동될 수 있음.
+        image.save(image_buffer, format='JPEG', quality=80)
         # Base64 변환
         resized_binary = image_buffer.getvalue()
         base64_image = base64.b64encode(resized_binary).decode('UTF-8')

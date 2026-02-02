@@ -1,10 +1,11 @@
-import os, httpx
-
-from fastapi import APIRouter, UploadFile, File, status
-from app.services.service_ai import QwenServiceAI
-from app.schemas import qwen_schema
+import os
 from typing import List
 
+import httpx
+from fastapi import APIRouter, File, UploadFile, status
+
+from app.schemas import qwen_schema
+from app.services.service_ai import QwenServiceAI
 
 router = APIRouter(
     prefix="/ai",
@@ -31,7 +32,10 @@ async def health():
                 "message": "Qwen 연결 완료"
             }
         except Exception as e:
-            return {"status": "error", "message": f"런팟 엔드포인트 접근 실패: {str(e)}"}
+            return {
+                "status": "error",
+                "message": f"런팟 엔드포인트 접근 실패: {str(e)}"
+            }
 
 
 # Qwen 게시글 생성 api

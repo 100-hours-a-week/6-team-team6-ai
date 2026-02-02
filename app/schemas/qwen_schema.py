@@ -1,7 +1,7 @@
-from pydantic import BaseModel
 from typing import List
-from fastapi import UploadFile, File
 
+from fastapi import File, UploadFile
+from pydantic import BaseModel
 
 # MVP : 게시글 제목/내용 생성
 # 요청
