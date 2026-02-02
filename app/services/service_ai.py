@@ -14,7 +14,7 @@ from app.prompts.generate_prompt import GENERATE_POST_PROMPT
 
 # 추가: response에서 json 추출
 def extract_json(text: str):
-    match = re.search(r"(\{.*\}|\[.*\])", text, re.DOTALL)
+    match = re.search(r'```(?:json)?\s*([\{\[].*?[\}\]])\s*```', text, re.DOTALL)
     if match:
         return match.group(1)
     return text
