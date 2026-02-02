@@ -101,8 +101,12 @@ class QwenServiceAI:
     async def preprocess_image(self, file: UploadFile) -> str:
         # 디코딩
         image_data = await file.read()
-        # 리사이징 : 테스트 기반 640x640
+
         image = Image.open(io.BytesIO(image_data))
+        # RGB 변환: png error 방지..
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        # 리사이징 : 테스트 기반 640x640
         image.thumbnail((640, 640))
         # 바이너리 인코딩
         image_buffer = io.BytesIO()
