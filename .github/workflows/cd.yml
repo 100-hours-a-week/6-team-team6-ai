@@ -56,7 +56,7 @@ jobs:
 
       - name: Upload AI code
         run: |
-          scp -i ~/.ssh/deploy_key -r app/*.py requirements.txt \
+          scp -i ~/.ssh/deploy_key -r app requirements.txt \
             ubuntu@${{ steps.get-ip.outputs.server_ip }}:/home/ubuntu/deploy/ai/
 
       - name: Deploy AI service
