@@ -9,9 +9,11 @@ app = FastAPI()
 
 app.include_router(qwen_router.router)
 
+
 @app.get("/ai/health")
 async def health_check():
     return {"status": "healthy"}
+
 
 # local test
 if __name__ == "__main__":

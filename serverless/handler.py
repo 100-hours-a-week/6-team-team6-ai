@@ -43,14 +43,16 @@ async def handler(job) :
 
 VLLM_API_KEY = os.environ.get("VLLM_API_KEY")
 
+
 # 엔진 준비 확인
 async def wait_for_vllm():
     async with httpx.AsyncClient() as client:
         headers = {"Authorization": f"Bearer {VLLM_API_KEY}"}
         while True:
             try:
-                response = await client.get("http://127.0.0.1:8000/v1/models",
-                                            headers=headers, timeout=1.0)
+                response = await client.get(
+                    "http://127.0.0.1:8000/v1/models", headers=headers, timeout=1.0
+                )
                 if response.status_code == 200:
                     print("vLLM 엔진이 성공적으로 준비되었습니다!", flush=True)
                     break
@@ -72,16 +74,15 @@ async def handler(job):
         try:
             response = await client.post(
                 "http://127.0.0.1:8000/v1/chat/completions",
-                json = job_input,
-                headers = headers,
-                timeout = 120
+                json=job_input,
+                headers=headers,
+                timeout=120,
             )
             return response.json()
 
         except Exception as e:
             return {"error": f"vLLM Proxy 에러: {e}"}
 
+
 if __name__ == "__main__":
     runpod.serverless.start({"handler": handler})
-
-
