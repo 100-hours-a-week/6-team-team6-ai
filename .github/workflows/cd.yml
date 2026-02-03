@@ -56,8 +56,14 @@ jobs:
 
       - name: Upload AI code
         run: |
-          scp -i ~/.ssh/deploy_key -r app/*.py requirements.txt \
+          scp -i ~/.ssh/deploy_key -r app requirements.txt \
             ubuntu@${{ steps.get-ip.outputs.server_ip }}:/home/ubuntu/deploy/ai/
+
+      - name: Create environment file
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ steps.get-ip.outputs.server_ip }} \
+            "echo 'QWEN_ENDPOINT_ID=${{ secrets.QWEN_ENDPOINT_ID }}' > /home/ubuntu/deploy/ai/.env && \
+             echo 'RUNPOD_API_KEY=${{ secrets.RUNPOD_API_KEY }}' >> /home/ubuntu/deploy/ai/.env"
 
       - name: Deploy AI service
         run: |
