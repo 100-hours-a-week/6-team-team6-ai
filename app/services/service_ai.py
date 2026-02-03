@@ -111,7 +111,7 @@ class QwenServiceAI:
         # 바이너리 인코딩
         image_buffer = io.BytesIO()
         # 포맷,퀄리티는 성능따라 변동될 수 있음.
-        image.save(image_buffer, format="JPEG", quality=80)
+        image.save(image_buffer, format="WEBP", quality=80)
         # Base64 변환
         resized_binary = image_buffer.getvalue()
         base64_image = base64.b64encode(resized_binary).decode("UTF-8")
