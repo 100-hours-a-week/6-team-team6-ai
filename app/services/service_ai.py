@@ -27,7 +27,7 @@ class QwenServiceAI:
 
         # 페이로드 메세지 구성
         user_prompt = [
-            {"type": "text", "text": "이미지 분석 후 대여 게시글을 작성하세요."}
+            {"type": "text", "text": "이미지 분석 후 물품을 상세히 설명하는 대여 게시글을 작성하세요."}
         ]
         for b64img in base64_image:
             user_prompt.append(
@@ -46,7 +46,7 @@ class QwenServiceAI:
                     {"role": "user", "content": user_prompt},
                 ],
                 "max_tokens": 512,
-                "temperature": 0.2,
+                "temperature": 0.4,
             }
         }
 
@@ -111,7 +111,7 @@ class QwenServiceAI:
         # 바이너리 인코딩
         image_buffer = io.BytesIO()
         # 포맷,퀄리티는 성능따라 변동될 수 있음.
-        image.save(image_buffer, format="WEBP", quality=80)
+        image.save(image_buffer, format="WEBP", quality=90)
         # Base64 변환
         resized_binary = image_buffer.getvalue()
         base64_image = base64.b64encode(resized_binary).decode("UTF-8")
