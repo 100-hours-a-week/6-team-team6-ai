@@ -70,6 +70,7 @@ return_fields=["objects","attributes","text","confidence"]
         
 Remember to follow these instructions precisely. 
 Do not add extra steps or information beyond what has been requested. 
+Do not use any XML tags or function calls. Output only valid JSON.
 
 </instructions>
 
