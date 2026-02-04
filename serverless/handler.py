@@ -78,7 +78,19 @@ async def handler(job):
                 headers=headers,
                 timeout=120,
             )
-            return response.json()
+            #return response.json()
+
+            result = response.json()
+            # content만 : 서버리스는 output에서 찾도록 수정.
+            choices = result.get("choices")
+
+            if not choices:
+                raise Exception(f"모델 응답 형식이 올바르지 않습니다: {choices}")
+
+            create_post = choices[0]["message"]["content"]
+            print(f"생성한 게시글: {create_post}")
+
+            return create_post
 
         except Exception as e:
             return {"error": f"vLLM Proxy 에러: {e}"}

@@ -66,17 +66,22 @@ class QwenServiceAI:
 
                 response.raise_for_status()
                 result = response.json()
+                print(result)
 
                 if result.get("status") != "COMPLETED":
                     raise Exception(f"런팟 작업 실패: {result.get('error')}")
 
-                # content만 : 서버리스는 output에서 찾도록 수정.
+                # content만 : 런팟은 output으로 감싸서 옴
+                '''
                 choices = result["output"]["choices"]
 
                 if not choices:
                     raise Exception(f"모델 응답 형식이 올바르지 않습니다: {choices}")
 
                 content_text = choices[0]["message"]["content"]
+                '''
+                content_text = result.get("output")
+
                 try:
                     cleaned_json = extract_json(content_text)
                     return json.loads(cleaned_json)
