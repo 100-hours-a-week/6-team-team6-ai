@@ -30,7 +30,7 @@ jobs:
           
           # 환경 변수 파일 생성
           ssh -i ~/.ssh/deploy_key ubuntu@$SERVER \
-            "echo 'QWEN_ENDPOINT_ID=${{ secrets.QWEN_ENDPOINT_ID }}' > /opt/billage/ai/.env && \
+            "echo 'QWEN_ENDPOINT_ID=${{ secrets.DEV_QWEN_ENDPOINT_ID }}' > /opt/billage/ai/.env && \
              echo 'RUNPOD_API_KEY=${{ secrets.RUNPOD_API_KEY }}' >> /opt/billage/ai/.env"
 
           # 의존성 설치 & pm2 재시작
