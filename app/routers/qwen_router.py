@@ -20,7 +20,6 @@ service_qwen = QwenServiceAI()
 async def health():
     headers = {
         "Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}",
-        # "Content-Type": "application/json"
     }
     endpoint_id = os.getenv("QWEN_ENDPOINT_ID")
     async with httpx.AsyncClient() as client:
