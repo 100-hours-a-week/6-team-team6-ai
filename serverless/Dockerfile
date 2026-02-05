@@ -14,4 +14,5 @@ CMD python3 -m vllm.entrypoints.openai.api_server \
     --enforce-eager \
     --limit-mm-per-prompt '{"image":5}' \
     --gpu-memory-utilization 0.9 \
+    --enable-prefix-caching false \
     & python3 -u serverless/handler.py
