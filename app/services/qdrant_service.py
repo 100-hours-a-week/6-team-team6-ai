@@ -1,0 +1,62 @@
+import io
+
+from fastapi.params import Depends
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from PIL import Image
+from app.schemas.embedding_schema import ItemCreateRequest
+from app.services.embedding_service import get_embedding_service
+
+
+class QdrantService:
+    def __init__(self, embedding_service, host="localhost", port=6333):
+        self.embedding_service = embedding_service
+        self.client = QdrantClient(host=host, port=port)
+        self.collection_name = "billage_items"
+
+    async def upsert_item(self, data: ItemCreateRequest, image_data: bytes):
+        try:
+            image = Image.open(io.BytesIO(image_data)).convert("RGB")
+            bingsu_vec, dino_vec = self.embedding_service.encode_image(image)
+
+            # 가격 -> 시간 단위로 보정
+            item_price = data.price
+            if data.price_unit == "DAY":
+                item_price = int(item_price / 24)
+            payload = {
+                "user_id": data.user_id,
+                "group_id": data.group_id,
+                "post_id": data.post_id,
+                "price": item_price
+            }
+            # 저장
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=[
+                    models.PointStruct(
+                        id=data.post_id,
+                        vector={
+                            "dino_vec": dino_vec,
+                            "bingsu_vec": bingsu_vec
+                        },
+                        payload=payload
+                    )
+                ]
+            )
+            print(f"Post ID: {data.post_id}. Qdrant 데이터 저장 완료")
+            return {"status": "success"}
+        except Exception as e:
+            print(f"Post ID: {data.post_id}. Qdrant 데이터 저장 실패")
+            return {"status": "fail", "reason": str(e)}
+
+
+# 서비스 객체 (전역변수)
+_qdrant_service = None
+
+def get_qdrant_service(
+    embed_service = Depends(get_embedding_service)
+):
+    global _qdrant_service
+    if _qdrant_service is None:
+        _qdrant_service = QdrantService(embedding_service=embed_service)
+    return _qdrant_service

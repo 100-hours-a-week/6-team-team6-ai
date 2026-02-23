@@ -2,10 +2,13 @@ import os
 from typing import List
 
 import httpx
-from fastapi import APIRouter, File, UploadFile, status
+from fastapi import APIRouter, File, UploadFile, status, Form, Depends, HTTPException
+from fastapi.params import Depends
 
 from app.schemas import qwen_schema
+from app.schemas.embedding_schema import ItemCreateRequest
 from app.services.service_ai import QwenServiceAI
+from app.services.qdrant_service import get_qdrant_service, QdrantService
 
 router = APIRouter(
     prefix="/ai",
@@ -47,3 +50,15 @@ async def health():
 )
 async def generate_post(images: List[UploadFile] = File(...)):
     return await service_qwen.generate_post(images)
+
+@router.post("/items/upsert", summary="벡터DB 저장")
+async def create_item(data: str = Form(...),
+                      image: UploadFile = File(...),
+                      qdrant_service: QdrantService = Depends(get_qdrant_service)):
+    try:
+        request_data = ItemCreateRequest.model_validate_json(data)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"JSON 파싱 에러: {e}")
+
+    image_data = await image.read()
+    return await qdrant_service.upsert_item(request_data, image_data)
