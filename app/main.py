@@ -1,13 +1,22 @@
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from app.services.embedding_service import get_embedding_service
 
-from app.routers import qwen_router
+from app.routers import qwen_router, test_router
 
 load_dotenv()
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_embedding_service()
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(qwen_router.router)
+app.include_router(test_router.router)
 
 
 @app.get("/ai/health")
