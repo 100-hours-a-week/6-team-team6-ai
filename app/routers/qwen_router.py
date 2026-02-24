@@ -11,8 +11,7 @@ from app.services.generate_service import GenerateService
 from app.services.qdrant_service import get_qdrant_service, QdrantService
 
 router = APIRouter(
-    prefix="/ai",
-    tags=["ai"],
+    prefix="/ai"
 )
 
 generate_service = GenerateService()
@@ -51,7 +50,7 @@ async def health():
 async def generate_post(images: List[UploadFile] = File(...)):
     return await generate_service.generate_post(images)
 
-@router.post("/items/upsert", summary="벡터DB 저장")
+@router.post("/items/upsert", tags=["Items"], summary="벡터DB 저장")
 async def create_item(data: str = Form(...),
                       image: UploadFile = File(...),
                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
@@ -62,3 +61,8 @@ async def create_item(data: str = Form(...),
 
     image_data = await image.read()
     return await qdrant_service.upsert_item(request_data, image_data)
+
+
+@router.delete("/items/{post_id}", tags=["Items"], summary="벡터DB 삭제")
+async def delete_item(post_id: int, qdrant_service: QdrantService = Depends(get_qdrant_service)):
+    return await qdrant_service.delete_item(post_id)

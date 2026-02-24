@@ -43,10 +43,24 @@ class QdrantService:
                     )
                 ]
             )
-            print(f"Post ID: {data.post_id}. Qdrant 데이터 저장 완료")
+            print(f"VectorDB 데이터 저장 완료. Post ID: {data.post_id}")
             return {"status": "success"}
         except Exception as e:
-            print(f"Post ID: {data.post_id}. Qdrant 데이터 저장 실패")
+            print(f"VectorDB 데이터 저장 실패. Post ID: {data.post_id}")
+            return {"status": "fail", "reason": str(e)}
+
+    async def delete_item(self, post_id: int):
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.PointIdsList(
+                    points=[post_id]
+                )
+            )
+            print(f"VectorDB 데이터 삭제 완료. Post ID: {post_id}")
+            return {"status": "deleted", "post_id": post_id}
+        except Exception as e:
+            print(f"VectorDB 데이터 삭제 실패. Post Id: {post_id}")
             return {"status": "fail", "reason": str(e)}
 
 
