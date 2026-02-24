@@ -19,13 +19,12 @@ class EmbeddingService:
         with torch.no_grad():
             bingsu_input = self.bingsu_processor(image, return_tensors="pt").to(self.device)
             bingsu_outputs = self.bingsu.get_image_features(**bingsu_input)
-            print(f"📊 Bingsu 원본 모양: {bingsu_outputs[0].shape}")
-            #bingsu_vec = bingsu_outputs[0].flatten().cpu().numpy().tolist()
+            #print(f"Bingsu shape: {bingsu_outputs[0].shape}")
             bingsu_vec = bingsu_outputs[0][0, 0, :768].cpu().numpy().tolist()
 
             dino_input = self.dino_processor(image, return_tensors="pt").to(self.device)
             dino_outputs = self.dino(**dino_input)
-            print(f"📊 DINO 원본 모양: {dino_outputs.last_hidden_state.shape}")
+            #print(f"DINO shape: {dino_outputs.last_hidden_state.shape}")
             dino_vec = dino_outputs.last_hidden_state[0, 0, :].cpu().numpy().tolist()
         return bingsu_vec, dino_vec
 

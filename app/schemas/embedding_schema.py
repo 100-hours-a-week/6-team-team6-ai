@@ -1,6 +1,3 @@
-from typing import List
-
-from fastapi import File, UploadFile
 from pydantic import BaseModel
 from enum import Enum
 

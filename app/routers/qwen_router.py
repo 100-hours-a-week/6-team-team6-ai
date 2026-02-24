@@ -5,9 +5,9 @@ import httpx
 from fastapi import APIRouter, File, UploadFile, status, Form, Depends, HTTPException
 from fastapi.params import Depends
 
-from app.schemas import qwen_schema
+from app.schemas import generate_schema
 from app.schemas.embedding_schema import ItemCreateRequest
-from app.services.service_ai import QwenServiceAI
+from app.services.generate_service import GenerateService
 from app.services.qdrant_service import get_qdrant_service, QdrantService
 
 router = APIRouter(
@@ -15,7 +15,7 @@ router = APIRouter(
     tags=["ai"],
 )
 
-service_qwen = QwenServiceAI()
+generate_service = GenerateService()
 
 
 # Qwen 헬스체크
@@ -44,12 +44,12 @@ async def health():
 # Qwen 게시글 생성 api
 @router.post(
     "/generate",
-    response_model=qwen_schema.GenerateResponse,
+    response_model=generate_schema.GenerateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="게시글 생성",
 )
 async def generate_post(images: List[UploadFile] = File(...)):
-    return await service_qwen.generate_post(images)
+    return await generate_service.generate_post(images)
 
 @router.post("/items/upsert", summary="벡터DB 저장")
 async def create_item(data: str = Form(...),

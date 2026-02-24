@@ -20,7 +20,7 @@ def extract_json(text: str):
     return text
 
 
-class QwenServiceAI:
+class GenerateService:
     async def generate_post(self, images: list[UploadFile]):
         image_list = [self.preprocess_image(target) for target in images]
         base64_image = await asyncio.gather(*image_list)
