@@ -24,15 +24,17 @@ class GenerateService:
     def __init__(self, qdrant_service):
         self.qdrant_service = qdrant_service
     async def generate_post(self, images: list[UploadFile]):
-        # 썸네일 이미지만 사용 -> 바이너리 형태로.
+        # 썸네일 이미지만 사용
         thumbnail = images[0]
         thumbnail_bytes = await thumbnail.read()
         await thumbnail.seek(0)
-        # 유사 물품 가격 찾기 (k=5): 전체 포스트(식별값) 중에서.
+        # 유사 물품 가격 찾기 (k=5): 그룹 구별 없는 전체 포스트 기준.
         similar_price = await self.qdrant_service.search_similar_price(thumbnail_bytes)
-        # 시세 산정하기 : 우선은 평균값
-        recommend_price = sum(similar_price) / len(similar_price)
-        print(f"recommend price: {recommend_price}")
+        # 시세 산정하기 : 우선은 평균값으로 산정.
+        recommend_price = 0
+        if similar_price:
+            recommend_price = int(sum(similar_price) / len(similar_price))
+            print(f"recommend price: {recommend_price}")
 
         image_list = [self.preprocess_image(target) for target in images]
         base64_image = await asyncio.gather(*image_list)
@@ -83,8 +85,8 @@ class GenerateService:
                 if result.get("status") != "COMPLETED":
                     raise Exception(f"런팟 작업 실패: {result.get('error')}")
 
-                # content만 : 런팟은 output으로 감싸서 옴
                 '''
+                # content만 : 런팟은 output으로 감싸서 옴
                 choices = result["output"]["choices"]
 
                 if not choices:
@@ -96,7 +98,9 @@ class GenerateService:
 
                 try:
                     cleaned_json = extract_json(content_text)
-                    return json.loads(cleaned_json)
+                    response_data = json.loads(cleaned_json)
+                    response_data["price"] = recommend_price
+                    return response_data
                 except json.JSONDecodeError:
                     # 실패 -> JSON 파싱 에러
                     raise Exception(f"JSON 파싱 실패. 원본 response: {content_text}")

@@ -9,3 +9,4 @@ class GenerateResponse(BaseModel):
     title: str
     content: str
     isRentable: bool
+    price: int
