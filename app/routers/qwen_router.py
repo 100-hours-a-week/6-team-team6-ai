@@ -5,7 +5,7 @@ import httpx
 from fastapi import APIRouter, File, UploadFile, status, Form, Depends, HTTPException
 
 from app.schemas import generate_schema
-from app.schemas.embedding_schema import ItemCreateRequest
+from app.schemas.embedding_schema import ItemUpsertRequest
 from app.services.generate_service import GenerateService, get_generate_service
 from app.services.qdrant_service import get_qdrant_service, QdrantService
 
@@ -48,11 +48,11 @@ async def generate_post(images: List[UploadFile] = File(...),
     return await generate_service.generate_post(images)
 
 @router.post("/items/upsert", tags=["Items"], summary="벡터DB 저장")
-async def create_item(data: str = Form(...),
+async def upsert_item(data: str = Form(...),
                       image: UploadFile = File(...),
                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
     try:
-        request_data = ItemCreateRequest.model_validate_json(data)
+        request_data = ItemUpsertRequest.model_validate_json(data)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"JSON 파싱 에러: {e}")
 

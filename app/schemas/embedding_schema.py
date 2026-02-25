@@ -8,7 +8,7 @@ class PriceUnit(str, Enum):
 
 # 벡터DB 저장
 # 요청
-class ItemCreateRequest(BaseModel):
+class ItemUpsertRequest(BaseModel):
     user_id: int
     group_id: int
     post_id: int

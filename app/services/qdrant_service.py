@@ -5,7 +5,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from PIL import Image
 
-from app.schemas.embedding_schema import ItemCreateRequest
+from app.schemas.embedding_schema import ItemUpsertRequest
 from app.services.embedding_service import get_embedding_service
 
 
@@ -16,7 +16,7 @@ class QdrantService:
         #self.client: AsyncQdrantClient = AsyncQdrantClient(host=host, port=port)
         self.collection_name = "billage_items"
 
-    async def upsert_item(self, data: ItemCreateRequest, image_data: bytes):
+    async def upsert_item(self, data: ItemUpsertRequest, image_data: bytes):
         try:
             image = Image.open(io.BytesIO(image_data)).convert("RGB")
             bingsu_vec, dino_vec = self.embedding_service.encode_image(image)
