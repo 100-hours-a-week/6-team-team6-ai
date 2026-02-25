@@ -1,9 +1,12 @@
 import io
+import os
+import boto3
 
 from fastapi.params import Depends
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from PIL import Image
+from botocore.exceptions import NoCredentialsError
 
 from app.schemas.embedding_schema import ItemUpsertRequest
 from app.services.embedding_service import get_embedding_service
@@ -12,12 +15,26 @@ from app.services.embedding_service import get_embedding_service
 class QdrantService:
     def __init__(self, embedding_service, host="localhost", port=6333):
         self.embedding_service = embedding_service
-        self.client = QdrantClient(host=host, port=port)
+        # VectorDB setting
+        self.qdrant_client = QdrantClient(host=host, port=port)
         #self.client: AsyncQdrantClient = AsyncQdrantClient(host=host, port=port)
         self.collection_name = "billage_items"
+        # S3 setting
+        self.s3_client = boto3.client(
+            "s3",
+            aws_access_key_id = os.getenv('AWS_ACCESS_KEY'),
+            aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY'),
+            region_name = os.getenv('AWS_REGION_NAME'),
+        )
+        self.bucket_name = os.getenv('S3_BUCKET_NAME'),
 
-    async def upsert_item(self, data: ItemUpsertRequest, image_data: bytes):
+    async def upsert_item(self, data: ItemUpsertRequest):
         try:
+            # S3
+            file_key = "파일 키 형식 적기"
+            s3_response = self.s3_client.get_object(Bucket=self.bucket_name, key=file_key)
+            image_data = s3_response["Body"].read()
+
             image = Image.open(io.BytesIO(image_data)).convert("RGB")
             bingsu_vec, dino_vec = self.embedding_service.encode_image(image)
 
@@ -32,7 +49,7 @@ class QdrantService:
                 "price": item_price
             }
             # 저장
-            self.client.upsert(
+            self.qdrant_client.upsert(
                 collection_name=self.collection_name,
                 points=[
                     models.PointStruct(
@@ -53,7 +70,7 @@ class QdrantService:
 
     async def delete_item(self, post_id: int):
         try:
-            self.client.delete(
+            self.qdrant_client.delete(
                 collection_name=self.collection_name,
                 points_selector=models.PointIdsList(
                     points=[post_id]
@@ -72,7 +89,7 @@ class QdrantService:
 
         # 유사도 검색.
         try:
-            search_result = self.client.query_points(
+            search_result = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
                 query=image_vec,
                 using="dino_vec",

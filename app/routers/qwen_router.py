@@ -47,8 +47,12 @@ async def generate_post(images: List[UploadFile] = File(...),
                         generate_service: GenerateService = Depends(get_generate_service)):
     return await generate_service.generate_post(images)
 
-@router.post("/items/upsert", tags=["Items"], summary="벡터DB 저장")
-async def upsert_item(data: str = Form(...),
+@router.post("/items/upsert", tags=["Items"], summary="벡터DB items 저장")
+async def upsert_item(data: ItemUpsertRequest,
+                      qdrant_service: QdrantService = Depends(get_qdrant_service)):
+    return await qdrant_service.upsert_item(data)
+
+"""async def upsert_item(data: str = Form(...),
                       image: UploadFile = File(...),
                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
     try:
@@ -57,7 +61,7 @@ async def upsert_item(data: str = Form(...),
         raise HTTPException(status_code=400, detail=f"JSON 파싱 에러: {e}")
 
     image_data = await image.read()
-    return await qdrant_service.upsert_item(request_data, image_data)
+    return await qdrant_service.upsert_item(request_data, image_data)"""
 
 
 @router.delete("/items/{post_id}", tags=["Items"], summary="벡터DB 삭제")
