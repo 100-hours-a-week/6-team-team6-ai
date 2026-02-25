@@ -16,16 +16,18 @@ class EmbeddingService:
 
     def encode_image(self, image: Image.Image):
         with torch.no_grad():
-            bingsu_input = self.bingsu_processor(image, return_tensors="pt").to(self.device)
-            bingsu_outputs = self.bingsu.get_image_features(**bingsu_input)
-            #print(f"Bingsu shape: {bingsu_outputs[0].shape}")
-            bingsu_vec = bingsu_outputs[0][0, 0, :768].cpu().numpy().tolist()
-
             dino_input = self.dino_processor(image, return_tensors="pt").to(self.device)
             dino_outputs = self.dino(**dino_input)
             #print(f"DINO shape: {dino_outputs.last_hidden_state.shape}")
             dino_vec = dino_outputs.last_hidden_state[0, 0, :].cpu().numpy().tolist()
-        return bingsu_vec, dino_vec
+        return dino_vec
+
+    def encode_text(self, text: str):
+        with torch.no_grad():
+            bingsu_input = self.bingsu_processor(text=text, return_tensors="pt").to(self.device)
+            bingsu_outputs = self.bingsu.get_text_features(**bingsu_input)
+            bingsu_vec = bingsu_outputs[0][0, 0, :768].cpu().numpy().tolist()
+        return bingsu_vec
 
 embedding_service = None
 

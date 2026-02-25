@@ -36,7 +36,10 @@ class QdrantService:
             image_data = s3_response["Body"].read()
 
             image = Image.open(io.BytesIO(image_data)).convert("RGB")
-            bingsu_vec, dino_vec = self.embedding_service.encode_image(image)
+            dino_vec = self.embedding_service.encode_image(image)
+
+            post_title = data.title
+            bingsu_vec = self.embedding_service.encode_text(post_title)
 
             # 가격 -> 시간 단위로 보정
             item_price = data.price
@@ -85,7 +88,7 @@ class QdrantService:
     async def search_similar_price(self, image_data: bytes):
         # 이미지 벡터화
         image = Image.open(io.BytesIO(image_data)).convert("RGB")
-        _, image_vec = self.embedding_service.encode_image(image)
+        image_vec = self.embedding_service.encode_image(image)
 
         # 유사도 검색.
         try:
