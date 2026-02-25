@@ -1,12 +1,9 @@
 import io
-from asyncio import timeout
 
 from fastapi.params import Depends
 from qdrant_client import QdrantClient
-#from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 from PIL import Image
-from torchvision.transforms.v2.functional import affine_image
 
 from app.schemas.embedding_schema import ItemCreateRequest
 from app.services.embedding_service import get_embedding_service

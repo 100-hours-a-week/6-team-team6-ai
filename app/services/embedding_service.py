@@ -1,5 +1,4 @@
-from sentence_transformers import SentenceTransformer
-from transformers import CLIPModel, AutoModel, AutoProcessor, AutoImageProcessor
+from transformers import CLIPModel, AutoModel, AutoProcessor
 import torch
 from PIL import Image
 

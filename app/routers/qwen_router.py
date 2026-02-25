@@ -3,7 +3,6 @@ from typing import List
 
 import httpx
 from fastapi import APIRouter, File, UploadFile, status, Form, Depends, HTTPException
-from fastapi.params import Depends
 
 from app.schemas import generate_schema
 from app.schemas.embedding_schema import ItemCreateRequest
