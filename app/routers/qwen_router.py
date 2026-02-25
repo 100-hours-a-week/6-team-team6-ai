@@ -7,14 +7,12 @@ from fastapi.params import Depends
 
 from app.schemas import generate_schema
 from app.schemas.embedding_schema import ItemCreateRequest
-from app.services.generate_service import GenerateService
+from app.services.generate_service import GenerateService, get_generate_service
 from app.services.qdrant_service import get_qdrant_service, QdrantService
 
 router = APIRouter(
     prefix="/ai"
 )
-
-generate_service = GenerateService()
 
 
 # Qwen 헬스체크
@@ -39,7 +37,6 @@ async def health():
                 "message": f"런팟 엔드포인트 접근 실패: {str(e)}",
             }
 
-
 # Qwen 게시글 생성 api
 @router.post(
     "/generate",
@@ -47,7 +44,8 @@ async def health():
     status_code=status.HTTP_201_CREATED,
     summary="게시글 생성",
 )
-async def generate_post(images: List[UploadFile] = File(...)):
+async def generate_post(images: List[UploadFile] = File(...),
+                        generate_service: GenerateService = Depends(get_generate_service)):
     return await generate_service.generate_post(images)
 
 @router.post("/items/upsert", tags=["Items"], summary="벡터DB 저장")
@@ -64,5 +62,6 @@ async def create_item(data: str = Form(...),
 
 
 @router.delete("/items/{post_id}", tags=["Items"], summary="벡터DB 삭제")
-async def delete_item(post_id: int, qdrant_service: QdrantService = Depends(get_qdrant_service)):
+async def delete_item(post_id: int,
+                      qdrant_service: QdrantService = Depends(get_qdrant_service)):
     return await qdrant_service.delete_item(post_id)

@@ -1,9 +1,13 @@
 import io
+from asyncio import timeout
 
 from fastapi.params import Depends
 from qdrant_client import QdrantClient
+#from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 from PIL import Image
+from torchvision.transforms.v2.functional import affine_image
+
 from app.schemas.embedding_schema import ItemCreateRequest
 from app.services.embedding_service import get_embedding_service
 
@@ -12,6 +16,7 @@ class QdrantService:
     def __init__(self, embedding_service, host="localhost", port=6333):
         self.embedding_service = embedding_service
         self.client = QdrantClient(host=host, port=port)
+        #self.client: AsyncQdrantClient = AsyncQdrantClient(host=host, port=port)
         self.collection_name = "billage_items"
 
     async def upsert_item(self, data: ItemCreateRequest, image_data: bytes):
@@ -63,6 +68,29 @@ class QdrantService:
             print(f"VectorDB 데이터 삭제 실패. Post Id: {post_id}")
             return {"status": "fail", "reason": str(e)}
 
+    async def search_similar_price(self, image_data: bytes):
+        # 이미지 벡터화
+        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        _, image_vec = self.embedding_service.encode_image(image)
+
+        # 유사도 검색.
+        try:
+            search_result = self.client.query_points(
+                collection_name=self.collection_name,
+                query=image_vec,
+                using="dino_vec",
+                # 조정 가능성 o
+                score_threshold=0.7,
+                limit=5,
+                with_payload=True
+            )
+
+
+            for hit in search_result.points:
+                print(f"similar item: {hit.payload}")
+            return [hit.payload.get("price") for hit in search_result.points if hit.payload]
+        except Exception as e:
+            return {"status": "search_failed", "reason": str(e)}
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None
