@@ -26,13 +26,14 @@ class QdrantService:
             aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY'),
             region_name = os.getenv('AWS_REGION_NAME'),
         )
-        self.bucket_name = os.getenv('S3_BUCKET_NAME'),
+        self.bucket_name = os.getenv('S3_BUCKET_NAME')
 
     async def upsert_item(self, data: ItemUpsertRequest):
         try:
             # S3
-            file_key = "파일 키 형식 적기"
-            s3_response = self.s3_client.get_object(Bucket=self.bucket_name, key=file_key)
+            file_key = data.file_key
+            print(file_key)
+            s3_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_key)
             image_data = s3_response["Body"].read()
 
             image = Image.open(io.BytesIO(image_data)).convert("RGB")
@@ -69,7 +70,8 @@ class QdrantService:
             return {"status": "success"}
         except Exception as e:
             print(f"VectorDB 데이터 저장 실패. Post ID: {data.post_id}")
-            return {"status": "fail", "reason": str(e)}
+            print(f"reason: {str(e)}")
+            return {"status": "fail"}
 
     async def delete_item(self, post_id: int):
         try:
@@ -83,7 +85,8 @@ class QdrantService:
             return {"status": "deleted", "post_id": post_id}
         except Exception as e:
             print(f"VectorDB 데이터 삭제 실패. Post Id: {post_id}")
-            return {"status": "fail", "reason": str(e)}
+            print(f"reason: {str(e)}")
+            return {"status": "delete fail"}
 
     async def search_similar_price(self, image_data: bytes):
         # 이미지 벡터화
