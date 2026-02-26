@@ -6,7 +6,6 @@ from fastapi.params import Depends
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from PIL import Image
-from botocore.exceptions import NoCredentialsError
 
 from app.schemas.embedding_schema import ItemUpsertRequest
 from app.services.embedding_service import get_embedding_service
@@ -110,7 +109,8 @@ class QdrantService:
                 print(f"similar item: {hit.payload}")
             return [hit.payload.get("price") for hit in search_result.points if hit.payload]
         except Exception as e:
-            return {"status": "search_failed", "reason": str(e)}
+            print(f"reason: str(e)")
+            return {"status": "search_failed"}
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None

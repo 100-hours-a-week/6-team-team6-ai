@@ -18,7 +18,6 @@ class EmbeddingService:
         with torch.no_grad():
             dino_input = self.dino_processor(image, return_tensors="pt").to(self.device)
             dino_outputs = self.dino(**dino_input)
-            #print(f"DINO shape: {dino_outputs.last_hidden_state.shape}")
             dino_vec = dino_outputs.last_hidden_state[0, 0, :].cpu().numpy().tolist()
         return dino_vec
 

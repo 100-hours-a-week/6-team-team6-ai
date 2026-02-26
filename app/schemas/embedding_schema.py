@@ -15,5 +15,4 @@ class ItemUpsertRequest(BaseModel):
     title: str
     price: int
     price_unit: PriceUnit
-    # 이미지는 S3 file key로
     file_key: str
