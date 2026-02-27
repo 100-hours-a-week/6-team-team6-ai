@@ -52,17 +52,6 @@ async def upsert_item(data: ItemUpsertRequest,
                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
     return await qdrant_service.upsert_item(data)
 
-"""async def upsert_item(data: str = Form(...),
-                      image: UploadFile = File(...),
-                      qdrant_service: QdrantService = Depends(get_qdrant_service)):
-    try:
-        request_data = ItemUpsertRequest.model_validate_json(data)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"JSON 파싱 에러: {e}")
-
-    image_data = await image.read()
-    return await qdrant_service.upsert_item(request_data, image_data)"""
-
 
 @router.delete("/items/{post_id}", tags=["Items"], summary="벡터DB 삭제")
 async def delete_item(post_id: int,

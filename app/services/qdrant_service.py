@@ -1,6 +1,8 @@
 import io
 import os
 import boto3
+from botocore.exceptions import ClientError
+from fastapi import HTTPException, status
 
 from fastapi.params import Depends
 from qdrant_client import QdrantClient
@@ -30,11 +32,28 @@ class QdrantService:
     async def upsert_item(self, data: ItemUpsertRequest):
         try:
             # S3
-            file_key = data.file_key
-            print(file_key)
-            s3_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_key)
-            image_data = s3_response["Body"].read()
-
+            try:
+                file_key = data.file_key
+                print(file_key)
+                s3_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_key)
+                image_data = s3_response["Body"].read()
+            except ClientError as e:
+                error_code = e.response["Error"]["Code"]
+                if error_code == "NoSuchKey":
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={
+                            "status": "fail",
+                            "message": f"S3에 해당 이미지가 존재하지 않습니다. file key: {file_key}"
+                        }
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={
+                        "status": "fail",
+                        "message": f"S3 통신 오류 발생: {str(e)}"
+                    }
+                )
             image = Image.open(io.BytesIO(image_data)).convert("RGB")
             dino_vec = self.embedding_service.encode_image(image)
 
@@ -67,25 +86,49 @@ class QdrantService:
             )
             print(f"VectorDB 데이터 저장 완료. Post ID: {data.post_id}")
             return {"status": "success"}
+        except HTTPException:
+            raise
         except Exception as e:
-            print(f"VectorDB 데이터 저장 실패. Post ID: {data.post_id}")
-            print(f"reason: {str(e)}")
-            return {"status": "fail"}
+            print(f"VectorDB 데이터 저장 실패. Post ID: {data.post_id} \n reason: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "status": "fail",
+                    "message": "Qdrant 서버 오류: {str(e)}"
+                }
+            )
 
     async def delete_item(self, post_id: int):
         try:
+            existing_point = self.qdrant_client.retrieve(
+                collection_name=self.collection_name,
+                ids=[post_id]
+            )
+            if not existing_point:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "status": "fail",
+                        "message": f"VectorDB 데이터 삭제 실패. reason: 삭제할 데이터를 찾을 수 없습니다. (post id: {post_id})"
+                    }
+                )
+
             self.qdrant_client.delete(
                 collection_name=self.collection_name,
-                points_selector=models.PointIdsList(
-                    points=[post_id]
-                )
+                points_selector=models.PointIdsList(points=[post_id])
             )
             print(f"VectorDB 데이터 삭제 완료. Post ID: {post_id}")
             return {"status": "deleted", "post_id": post_id}
+        except HTTPException:
+            raise
         except Exception as e:
-            print(f"VectorDB 데이터 삭제 실패. Post Id: {post_id}")
-            print(f"reason: {str(e)}")
-            return {"status": "delete fail"}
+            print(f"VectorDB 데이터 삭제 실패. Post Id: {post_id} \n reason: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "status": "fail",
+                    "message": f"VectorDB 데이터 삭제 실패. reason: {str(e)}"}
+            )
 
     async def search_similar_price(self, image_data: bytes):
         # 이미지 벡터화
@@ -110,7 +153,8 @@ class QdrantService:
             return [hit.payload.get("price") for hit in search_result.points if hit.payload]
         except Exception as e:
             print(f"reason: str(e)")
-            return {"status": "search_failed"}
+            return {"status": "search_failed",
+                    "reason": str(e)}
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None
