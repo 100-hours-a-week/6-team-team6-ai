@@ -6,13 +6,12 @@ import os
 
 load_dotenv()
 
-mode = os.getenv("QDRANT_MODE")
-#client = QdrantClient(host="localhost", port=6333)
-
 def qdrant_setting():
-    client = QdrantClient(host="localhost", port=6333)
+    #client = QdrantClient(host=os.getenv("QDRANT_HOST"), port=6333)
+    client = QdrantClient(url=os.getenv("QDRANT_URL"), api_key=os.getenv("QDRANT_API_KEY"))
+    print(f"Qdrant 연결 완료. url: {os.getenv('QDRANT_URL')}")
 
-    # 중복 테스트
+    # items 컬렉션
     collection_name = "billage_items"
     if not client.collection_exists(collection_name=collection_name):
         client.create_collection(

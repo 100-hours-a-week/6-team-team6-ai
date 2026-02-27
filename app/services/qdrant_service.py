@@ -14,11 +14,11 @@ from app.services.embedding_service import get_embedding_service
 
 
 class QdrantService:
-    def __init__(self, embedding_service, host="localhost", port=6333):
+    def __init__(self, embedding_service):
         self.embedding_service = embedding_service
         # VectorDB setting
-        self.qdrant_client = QdrantClient(host=host, port=port)
-        #self.client: AsyncQdrantClient = AsyncQdrantClient(host=host, port=port)
+        self.qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"),
+                                          api_key=os.getenv("QDRANT_API_KEY", None))
         self.collection_name = "billage_items"
         # S3 setting
         self.s3_client = boto3.client(
