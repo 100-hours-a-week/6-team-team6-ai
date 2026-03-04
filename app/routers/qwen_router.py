@@ -4,8 +4,7 @@ from typing import List
 import httpx
 from fastapi import APIRouter, File, UploadFile, status, Form, Depends, HTTPException
 
-from app.schemas import generate_schema
-from app.schemas.embedding_schema import ItemUpsertRequest
+from app.schemas import generate_schema, embedding_schema, recommend_schema
 from app.services.generate_service import GenerateService, get_generate_service
 from app.services.qdrant_service import get_qdrant_service, QdrantService
 
@@ -48,7 +47,7 @@ async def generate_post(images: List[UploadFile] = File(...),
     return await generate_service.generate_post(images)
 
 @router.post("/items/upsert", tags=["Items"], summary="벡터DB items 저장")
-async def upsert_item(data: ItemUpsertRequest,
+async def upsert_item(data: embedding_schema.ItemUpsertRequest,
                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
     return await qdrant_service.upsert_item(data)
 
@@ -57,3 +56,8 @@ async def upsert_item(data: ItemUpsertRequest,
 async def delete_item(post_id: int,
                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
     return await qdrant_service.delete_item(post_id)
+
+@router.get("/items/recommend", tags=["Recommend"], summary="게시글 기반 추천")
+async def recommend_item(data: recommend_schema.RecommendByItemRequest,
+                         qdrant_service: QdrantService = Depends(get_qdrant_service)):
+    return await qdrant_service.recommend_item(data)

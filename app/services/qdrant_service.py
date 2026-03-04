@@ -10,6 +10,7 @@ from qdrant_client.http import models
 from PIL import Image
 
 from app.schemas.embedding_schema import ItemUpsertRequest
+from app.schemas.recommend_schema import RecommendByItemRequest
 from app.services.embedding_service import get_embedding_service
 
 
@@ -155,6 +156,16 @@ class QdrantService:
             print(f"reason: str(e)")
             return {"status": "search_failed",
                     "reason": str(e)}
+
+    async def recommend_item(self, data: RecommendByItemRequest):
+        try:
+            positive_point = self.qdrant_client.query_points(
+                collection_name=self.collection_name,
+                query=data.post_id
+            )
+        except Exception as e:
+            return
+
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None
