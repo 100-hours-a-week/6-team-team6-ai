@@ -155,6 +155,8 @@ class QdrantService:
                         prices.append(int(hit.payload.get("price")))
                     except (ValueError, TypeError):
                         continue
+                else:
+                    print("유사 물건 없음.")
             return prices
         except Exception as e:
             print(f"Qdrant 서치 중 에러: {str(e)}")
