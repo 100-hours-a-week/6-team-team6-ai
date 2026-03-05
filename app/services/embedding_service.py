@@ -9,19 +9,16 @@ class EmbeddingService:
         self.bingsu_id = "Bingsu/clip-vit-large-patch14-ko"
         self.bingsu = CLIPModel.from_pretrained(self.bingsu_id).to(self.device)
         self.bingsu_processor = AutoProcessor.from_pretrained(self.bingsu_id)
-        #self.dino_id = "facebook/dinov2-large"
-        #self.dino = AutoModel.from_pretrained(self.dino_id).to(self.device)
-        #self.dino_processor = AutoProcessor.from_pretrained(self.dino_id)
+        self.dino_id = "facebook/dinov2-large"
+        self.dino = AutoModel.from_pretrained(self.dino_id).to(self.device)
+        self.dino_processor = AutoProcessor.from_pretrained(self.dino_id)
         print("로딩 완료")
 
     def encode_image(self, image: Image.Image):
         with torch.no_grad():
-            #dino_input = self.dino_processor(image, return_tensors="pt").to(self.device)
-            #dino_outputs = self.dino(**dino_input)
-            #dino_vec = dino_outputs.last_hidden_state[0, 0, :].cpu().numpy().tolist()
-            bingsu_image_input = self.bingsu_processor(image, return_tensors="pt").to(self.device)
-            bingsu_image_output = self.bingsu.get_image_features(**bingsu_image_input)
-            dino_vec = bingsu_image_output[0][0, 0, :768].cpu().numpy().tolist()
+            dino_input = self.dino_processor(image, return_tensors="pt").to(self.device)
+            dino_outputs = self.dino(**dino_input)
+            dino_vec = dino_outputs.last_hidden_state[0, 0, :].cpu().numpy().tolist()
         return dino_vec
 
     def encode_text(self, text: str):
