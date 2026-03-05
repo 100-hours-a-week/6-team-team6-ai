@@ -28,6 +28,7 @@ class GenerateService:
         thumbnail = images[0]
         thumbnail_bytes = await thumbnail.read()
         await thumbnail.seek(0)
+        """
         # 유사 물품 가격 찾기 (k=5): 그룹 구별 없는 전체 포스트 기준.
         similar_price = await self.qdrant_service.search_similar_price(thumbnail_bytes)
         # 시세 산정하기 : 우선은 평균값으로 산정.
@@ -35,7 +36,10 @@ class GenerateService:
         if similar_price:
             recommend_price = int(sum(similar_price) / len(similar_price))
             print(f"recommend price: {recommend_price}")
-
+        """
+        # 시세 산정 병렬로 수정
+        price_task = asyncio.create_task(self.qdrant_service.search_similar_price(thumbnail_bytes))
+        # 이미지 전처리
         image_list = [self.preprocess_image(target) for target in images]
         base64_image = await asyncio.gather(*image_list)
 
@@ -85,16 +89,11 @@ class GenerateService:
                 if result.get("status") != "COMPLETED":
                     raise Exception(f"런팟 작업 실패: {result.get('error')}")
 
-                '''
-                # content만 : 런팟은 output으로 감싸서 옴
-                choices = result["output"]["choices"]
-
-                if not choices:
-                    raise Exception(f"모델 응답 형식이 올바르지 않습니다: {choices}")
-
-                content_text = choices[0]["message"]["content"]
-                '''
                 content_text = result.get("output")
+                # 병렬로 산정한 시세 여기서 계산
+                similar_prices = await price_task
+                recommend_price = int(sum(similar_prices) / len(similar_prices)) if similar_prices else 0
+                print(f"recommend price: {recommend_price}")
 
                 try:
                     cleaned_json = extract_json(content_text)
@@ -113,7 +112,6 @@ class GenerateService:
                 raise HTTPException(
                     status_code=e.response.status_code, detail=error_detail
                 )
-
             except Exception as e:
                 raise HTTPException(
                     status_code=500, detail=f"알 수 없는 오류: {str(e)}"
