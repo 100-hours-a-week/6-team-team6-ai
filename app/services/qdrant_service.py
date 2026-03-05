@@ -159,9 +159,10 @@ class QdrantService:
 
     async def recommend_item(self, data: RecommendByItemRequest):
         try:
-            positive_point = self.qdrant_client.query_points(
+            target_point = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
-                query=data.post_id
+                query=data.post_id,
+                limit=5,
             )
         except Exception as e:
             return
