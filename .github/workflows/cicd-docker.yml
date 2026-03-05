@@ -4,6 +4,10 @@ on:
   push:
     branches: [develop]
 
+concurrency:
+  group: deploy-ai-dev-v2
+  cancel-in-progress: true
+
 permissions:
   id-token: write
   contents: read
@@ -42,10 +46,43 @@ jobs:
 
       - name: Trigger ASG Instance Refresh
         run: |
-          aws autoscaling start-instance-refresh \
+          # 기존 refresh가 남아 있으면 취소 후 새 refresh 시작
+          IN_PROGRESS_REFRESH_ID=$(aws autoscaling describe-instance-refreshes \
             --auto-scaling-group-name $ASG_NAME \
+            --region $AWS_REGION \
+            --query "InstanceRefreshes[?Status=='InProgress']|[0].InstanceRefreshId" \
+            --output text)
+
+          if [ -n "$IN_PROGRESS_REFRESH_ID" ] && [ "$IN_PROGRESS_REFRESH_ID" != "None" ]; then
+            echo "Instance refresh in progress: $IN_PROGRESS_REFRESH_ID"
+            echo "Cancel existing refresh before starting a new one."
+            aws autoscaling cancel-instance-refresh \
+              --auto-scaling-group-name $ASG_NAME \
+              --region $AWS_REGION
+
+            for i in {1..30}; do
+              STATUS=$(aws autoscaling describe-instance-refreshes \
+                --auto-scaling-group-name $ASG_NAME \
+                --region $AWS_REGION \
+                --query "InstanceRefreshes[?InstanceRefreshId=='$IN_PROGRESS_REFRESH_ID']|[0].Status" \
+                --output text)
+              echo "Cancel wait ($i/30): status=$STATUS"
+              if [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Successful" ] || [ "$STATUS" = "None" ]; then
+                break
+              fi
+              sleep 10
+            done
+          fi
+
+          NEW_REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name $ASG_NAME \
+            --region $AWS_REGION \
             --strategy Rolling \
-            --preferences '{"MinHealthyPercentage": 0}'
+            --preferences '{"MinHealthyPercentage": 0, "InstanceWarmup": 300}' \
+            --query "InstanceRefreshId" \
+            --output text)
+
+          echo "Started instance refresh: $NEW_REFRESH_ID"
 
       - name: Notify Discord on Failure
         if: failure()
