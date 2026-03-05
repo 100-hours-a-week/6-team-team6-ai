@@ -159,13 +159,54 @@ class QdrantService:
 
     async def recommend_item(self, data: RecommendByItemRequest):
         try:
-            target_point = self.qdrant_client.query_points(
+            target_point = self.qdrant_client.retrieve(
                 collection_name=self.collection_name,
-                query=data.post_id,
-                limit=5,
+                ids=[data.post_id],
+                with_payload=True
             )
+            if not target_point:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "status": "retrieve failed",
+                        "message": f"요청 게시글 데이터를 찾을 수 없습니다. (post id:{data.post_id})"
+                    }
+                )
+            current_user = target_point[0].payload.get("user_id")
+            current_group = target_point[0].payload.get("group_id")
+            search_result = self.qdrant_client.query_points(
+                collection_name=self.collection_name,
+                prefetch=[
+                    models.Prefetch(query=data.post_id, using="dino_vec", score_threshold=0.7, limit=10),
+                    models.Prefetch(query=data.post_id, using="bingsu_vec", score_threshold=0.7, limit=10)
+                ],
+                # RRF
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                query_filter=models.Filter(
+                    must=[models.FieldCondition(key="group_id", match=models.MatchValue(value=current_group))],
+                    must_not=[models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user))]
+                ),
+                limit=8
+            )
+            recommendations = []
+            for hit in search_result.points:
+                print(hit)
+                recommendations.append(hit.id)
+
+            print(f"추천 게시글: {recommendations}")
+            return {"recommendations": recommendations}
+
+        except HTTPException:
+            raise
         except Exception as e:
-            return
+            print(f"error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "status": "recommend fail",
+                    "message": f"error. {str(e)}"
+                }
+            )
 
 
 # 서비스 객체 (전역변수)
