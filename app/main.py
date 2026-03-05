@@ -10,8 +10,15 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    qdrant_setting()
-    get_embedding_service()
+    print("Qdrant 설정 확인 중")
+    try:
+        qdrant_setting()
+        print("Qdrant 설정 및 컬렉션 확인 완료")
+        get_embedding_service()
+        print("임베딩 서비스 로드 완료")
+    except Exception as e:
+        print(f"Qdrant 설정 실패: {e}")
+        raise e
     yield
 
 app = FastAPI(lifespan=lifespan)
