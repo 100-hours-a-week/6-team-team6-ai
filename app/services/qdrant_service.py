@@ -148,14 +148,20 @@ class QdrantService:
                 with_payload=True
             )
 
-
+            prices = []
             for hit in search_result.points:
-                print(f"similar item: {hit.payload}")
-            return [hit.payload.get("price") for hit in search_result.points if hit.payload]
+                if hit.payload and hit.payload.get("price") is not None:
+                    try:
+                        print(f"similar item: {hit.payload}")
+                        prices.append(int(hit.payload.get("price")))
+                    except (ValueError, TypeError):
+                        continue
+                else:
+                    print("유사 물건 없음.")
+            return prices
         except Exception as e:
-            print(f"reason: str(e)")
-            return {"status": "search_failed",
-                    "reason": str(e)}
+            print(f"Qdrant 서치 중 에러: {str(e)}")
+            return []
 
     async def recommend_item(self, data: RecommendByItemRequest):
         try:
