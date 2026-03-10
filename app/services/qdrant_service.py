@@ -131,12 +131,12 @@ class QdrantService:
                     "message": f"VectorDB 데이터 삭제 실패. reason: {str(e)}"}
             )
 
-    async def search_similar_price(self, image_data: bytes):
+    async def search_similar_price(self, image: Image.Image):
         # 이미지 벡터화
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        #image = Image.open(io.BytesIO(image_data)).convert("RGB")
         image_vec = self.embedding_service.encode_image(image)
 
-        # 유사도 검색.
+        # 유사 물품 가격 찾기 (k=5): 그룹 구별 없는 전체 포스트 기준.
         try:
             search_result = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
