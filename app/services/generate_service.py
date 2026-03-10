@@ -147,10 +147,9 @@ class GenerateService:
         # 리사이징 : 테스트 기반 640x640
         image.thumbnail((640, 640))
 
-        #base64_image = None;
         # 바이너리 인코딩
         image_buffer = io.BytesIO()
-        image.save(image_buffer, format="WEBP", quality=90)
+        image.save(image_buffer, format="WEBP", quality=75)
         # Base64 변환
         resized_binary = image_buffer.getvalue()
         base64_image = base64.b64encode(resized_binary).decode("UTF-8")
