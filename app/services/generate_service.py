@@ -8,6 +8,7 @@ import re
 import httpx
 from fastapi import HTTPException, UploadFile, Depends
 from PIL import Image
+from torch.ao.quantization.backend_config.qnnpack import qnnpack_weight_qint8_neg_127_to_127_scale_min_2_neg_12
 
 from app.prompts.generate_prompt import GENERATE_POST_PROMPT
 from app.services.qdrant_service import get_qdrant_service
@@ -24,32 +25,33 @@ class GenerateService:
     def __init__(self, qdrant_service):
         self.qdrant_service = qdrant_service
     async def generate_post(self, images: list[UploadFile]):
-        # 이미지 전처리
-        task = [self.preprocess_image(image, index == 0) for index, image in enumerate(images)]
-        preprocess_images = await asyncio.gather(*task)
-        # 내용 생성용 이미지 (Base64)
-        base64_images = [res["base64"] for res in preprocess_images]
-        # 벡터화(시세산정)용 이미지 (Image)
-        thumbnail_image_obj = preprocess_images[0]["image_obj"]
+        # 썸네일 이미지로 시멘틱 서치(병렬)
+        thumbnail_image = await self.preprocess_image(images[0], is_thumbnail=True)
+        price_task = asyncio.create_task(self.qdrant_service.search_similar_price(thumbnail_image))
+
+        # 이미지 전처리 (썸네일 제외)
+        image_task = [self.preprocess_image(image, is_thumbnail=False) for image in images[1:]]
+        preprocess_images = await asyncio.gather(*image_task)
+
+        # 내용 생성용 이미지 합치기 (썸네일 + 나머지)
+        base64_images = thumbnail_image["Base64"] + [res["Base64"] for res in preprocess_images]
 
         # Qwen 호출 - 시세 검색 병렬 처리
-        vlm_task = asyncio.create_task(self.call_qwen_vlm(base64_images))
-        price_task = asyncio.create_task(self.qdrant_service.search_similar_price(thumbnail_image_obj))
-
-        vlm_result, similar_prices = await asyncio.gather(vlm_task, price_task)
+        qwen_task = asyncio.create_task(self.call_qwen_vlm(base64_images))
+        qwen_result, similar_prices = await asyncio.gather(qwen_task, price_task)
 
         # 시세 산정
         recommend_price = int(sum(similar_prices) / len(similar_prices)) if similar_prices else 0
         print(f"recommend price: {recommend_price}")
 
         try:
-            cleaned_json = extract_json(vlm_result)
+            cleaned_json = extract_json(qwen_result)
             response_data = json.loads(cleaned_json)
             response_data["price"] = recommend_price
             return response_data
         except json.JSONDecodeError:
             # 실패 -> JSON 파싱 에러
-            raise Exception(f"JSON 파싱 실패. 원본 response: {vlm_result}")
+            raise Exception(f"JSON 파싱 실패. 원본 response: {qwen_result}")
 
     async def preprocess_image(self, file: UploadFile, is_thumbnail: bool = False):
         # 디코딩
@@ -67,7 +69,7 @@ class GenerateService:
         base64_image = base64.b64encode(resized_binary).decode("UTF-8")
 
         return {
-            "base64": base64_image,
+            "Base64": base64_image,
             "image_obj": image if is_thumbnail else None
         }
 
