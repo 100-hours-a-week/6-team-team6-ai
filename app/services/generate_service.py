@@ -25,7 +25,6 @@ class GenerateService:
         self.qdrant_service = qdrant_service
     async def generate_post(self, images: list[UploadFile]):
         # 이미지 전처리
-        # image_list = [self.preprocess_image(target) for target in images]
         task = [self.preprocess_image(image, index == 0) for index, image in enumerate(images)]
         preprocess_images = await asyncio.gather(*task)
         # 내용 생성용 이미지 (Base64)
@@ -33,99 +32,12 @@ class GenerateService:
         # 벡터화(시세산정)용 이미지 (Image)
         thumbnail_image_obj = preprocess_images[0]["image_obj"]
 
-        # 썸네일 이미지만 사용
-        #thumbnail = images[0]
-        #thumbnail_bytes = await thumbnail.read()
-        #await thumbnail.seek(0)
-        """
-        # 유사 물품 가격 찾기 (k=5): 그룹 구별 없는 전체 포스트 기준.
-        similar_price = await self.qdrant_service.search_similar_price(thumbnail_bytes)
-        # 시세 산정하기 : 우선은 평균값으로 산정.
-        recommend_price = 0
-        if similar_price:
-            recommend_price = int(sum(similar_price) / len(similar_price))
-            print(f"recommend price: {recommend_price}")
-        """
         # Qwen 호출 - 시세 검색 병렬 처리
         vlm_task = asyncio.create_task(self.call_qwen_vlm(base64_images))
         price_task = asyncio.create_task(self.qdrant_service.search_similar_price(thumbnail_image_obj))
 
         vlm_result, similar_prices = await asyncio.gather(vlm_task, price_task)
 
-        """
-        # 페이로드 메세지 구성
-        user_prompt = [{"type": "text", "text": "이미지 분석 후 물품을 상세히 설명하는 대여 게시글을 작성하세요."}]
-        for b64img in base64_image:
-            user_prompt.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{b64img}"},
-                }
-            )
-
-        # 페이로드: 서버리스 버전(vLLM 내장 핸들러용: input 추가)
-        payload = {
-            "input": {
-                "model": "Qwen/Qwen2.5-VL-7B-Instruct",
-                "messages": [
-                    {"role": "system", "content": GENERATE_POST_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "max_tokens": 512,
-                "temperature": 0.4,
-            }
-        }
-
-        # URL: 서버리스 버전. runsync로 동기처리.
-        target_url = f"https://api.runpod.ai/v2/{os.getenv('QWEN_ENDPOINT_ID')}/runsync"
-        
-        # Qwen 호출
-        # url 변경, 임의 식별 키 -> 런팟 API 유저 고유 키, 타임아웃 시간 늘리기
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(
-                    target_url,
-                    headers={"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"},
-                    json=payload,
-                    timeout=120,
-                )
-
-                response.raise_for_status()
-                result = response.json()
-                print(result)
-
-                if result.get("status") != "COMPLETED":
-                    raise Exception(f"런팟 작업 실패: {result.get('error')}")
-
-                content_text = result.get("output")
-        
-                # 병렬로 산정한 시세 여기서 계산
-                similar_prices = await price_task
-                recommend_price = int(sum(similar_prices) / len(similar_prices)) if similar_prices else 0
-                print(f"recommend price: {recommend_price}")
-        
-                try:
-                    cleaned_json = extract_json(content_text)
-                    response_data = json.loads(cleaned_json)
-                    response_data["price"] = recommend_price
-                    return response_data
-                except json.JSONDecodeError:
-                    # 실패 -> JSON 파싱 에러
-                    raise Exception(f"JSON 파싱 실패. 원본 response: {content_text}")
-
-            except httpx.HTTPStatusError as e:
-                if e.response.content:
-                    error_detail = e.response.json()
-                else:
-                    error_detail = "런팟 서버 오류"
-                raise HTTPException(
-                    status_code=e.response.status_code, detail=error_detail
-                )
-            except Exception as e:
-                raise HTTPException(
-                    status_code=500, detail=f"알 수 없는 오류: {str(e)}"
-                )
-        """
         # 시세 산정
         recommend_price = int(sum(similar_prices) / len(similar_prices)) if similar_prices else 0
         print(f"recommend price: {recommend_price}")
