@@ -62,11 +62,12 @@ async def wait_for_vllm():
                 print("vLLM 엔진 로딩 중... (8000번 포트 대기 중)", flush=True)
                 await asyncio.sleep(10)  # 5초마다 재시도
 
+asyncio.run(wait_for_vllm())
 
 # vLLM 리퀘스트 타입 이슈: 새로운 수동 핸들러 방식 시도중. . .
 async def handler(job):
     print("핸들러 호출 완료")
-    await wait_for_vllm()
+    #await wait_for_vllm()
     job_input = job.get("input", {})
     headers = {"Authorization": f"Bearer {VLLM_API_KEY}"}
 
@@ -78,8 +79,6 @@ async def handler(job):
                 headers=headers,
                 timeout=120,
             )
-            #return response.json()
-
             result = response.json()
             # content만 : 서버리스는 output에서 찾도록 수정.
             choices = result.get("choices")
