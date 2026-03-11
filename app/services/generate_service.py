@@ -23,6 +23,7 @@ def extract_json(text: str):
 class GenerateService:
     def __init__(self, qdrant_service):
         self.qdrant_service = qdrant_service
+        self.client = httpx.AsyncClient(timeout=120)
     async def generate_post(self, images: list[UploadFile]):
         # 썸네일 이미지로 시멘틱 서치(병렬)
         preprocess_thumbnail = await self.preprocess_image(images[0], is_thumbnail=True)
@@ -104,6 +105,37 @@ class GenerateService:
 
         # Qwen 호출
         # url 변경, 임의 식별 키 -> 런팟 API 유저 고유 키, 타임아웃 시간 늘리기
+        try:
+            response = await self.client.post(
+                target_url,
+                headers={"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"},
+                json=payload,
+                timeout=120,
+            )
+
+            response.raise_for_status()
+            result = response.json()
+            print(result)
+
+            if result.get("status") != "COMPLETED":
+                raise Exception(f"런팟 작업 실패: {result.get('error')}")
+
+            content_text = result.get("output")
+            return content_text
+
+        except httpx.HTTPStatusError as e:
+            if e.response.content:
+                error_detail = e.response.json()
+            else:
+                error_detail = "런팟 서버 오류"
+            raise HTTPException(
+                status_code=e.response.status_code, detail=error_detail
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"알 수 없는 오류: {str(e)}"
+            )
+        """
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
@@ -135,6 +167,6 @@ class GenerateService:
                 raise HTTPException(
                     status_code=500, detail=f"알 수 없는 오류: {str(e)}"
                 )
-
+        """
 def get_generate_service(qdrant_service = Depends(get_qdrant_service)):
     return GenerateService(qdrant_service=qdrant_service)
