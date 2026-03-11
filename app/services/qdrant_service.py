@@ -35,12 +35,12 @@ class QdrantService:
             # S3
             try:
                 file_key = data.file_key
-                print(file_key)
                 s3_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_key)
                 image_data = s3_response["Body"].read()
             except ClientError as e:
                 error_code = e.response["Error"]["Code"]
                 if error_code == "NoSuchKey":
+                    print(f"S3에 해당 이미지가 존재하지 않습니다. file key: {file_key}")
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail={
