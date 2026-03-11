@@ -23,30 +23,62 @@ def extract_json(text: str):
 class GenerateService:
     def __init__(self, qdrant_service):
         self.qdrant_service = qdrant_service
+        self.client = httpx.AsyncClient(timeout=120)
     async def generate_post(self, images: list[UploadFile]):
-        # 썸네일 이미지만 사용
-        thumbnail = images[0]
-        thumbnail_bytes = await thumbnail.read()
-        await thumbnail.seek(0)
-        """
-        # 유사 물품 가격 찾기 (k=5): 그룹 구별 없는 전체 포스트 기준.
-        similar_price = await self.qdrant_service.search_similar_price(thumbnail_bytes)
-        # 시세 산정하기 : 우선은 평균값으로 산정.
-        recommend_price = 0
-        if similar_price:
-            recommend_price = int(sum(similar_price) / len(similar_price))
-            print(f"recommend price: {recommend_price}")
-        """
-        # 시세 산정 병렬로 수정
-        price_task = asyncio.create_task(self.qdrant_service.search_similar_price(thumbnail_bytes))
-        # 이미지 전처리
-        image_list = [self.preprocess_image(target) for target in images]
-        base64_image = await asyncio.gather(*image_list)
+        # 썸네일 이미지로 시멘틱 서치(병렬)
+        preprocess_thumbnail = await self.preprocess_image(images[0], is_thumbnail=True)
+        thumbnail_image = preprocess_thumbnail["image_obj"]
+        price_task = asyncio.create_task(self.qdrant_service.search_similar_price(thumbnail_image))
 
+        # 이미지 전처리 (썸네일 제외)
+        image_task = [self.preprocess_image(image, is_thumbnail=False) for image in images[1:]]
+        preprocess_images = await asyncio.gather(*image_task)
+
+        # 내용 생성용 이미지 합치기 (썸네일 + 나머지)
+        base64_images = [preprocess_thumbnail["Base64"]]
+        for res in preprocess_images:
+            base64_images.append(res["Base64"])
+
+        # Qwen 호출 - 시세 검색 병렬 처리
+        qwen_task = asyncio.create_task(self.call_qwen_vlm(base64_images))
+        qwen_result, similar_prices = await asyncio.gather(qwen_task, price_task)
+
+        # 시세 산정
+        recommend_price = int(sum(similar_prices) / len(similar_prices)) if similar_prices else 0
+        print(f"recommend price: {recommend_price}")
+
+        try:
+            cleaned_json = extract_json(qwen_result)
+            response_data = json.loads(cleaned_json)
+            response_data["price"] = recommend_price
+            return response_data
+        except json.JSONDecodeError:
+            # 실패 -> JSON 파싱 에러
+            raise Exception(f"JSON 파싱 실패. 원본 response: {qwen_result}")
+
+    async def preprocess_image(self, file: UploadFile, is_thumbnail: bool = False):
+        # 디코딩
+        image_data = await file.read()
+        # RGB 변환: png error 방지..
+        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        # 리사이징 : 테스트 기반 640x640
+        image.thumbnail((640, 640))
+
+        # 바이너리 인코딩
+        image_buffer = io.BytesIO()
+        image.save(image_buffer, format="WEBP", quality=75)
+        # Base64 변환
+        resized_binary = image_buffer.getvalue()
+        base64_image = base64.b64encode(resized_binary).decode("UTF-8")
+
+        return {
+            "Base64": base64_image,
+            "image_obj": image if is_thumbnail else None
+        }
+
+    async def call_qwen_vlm(self, base64_image: list[str]):
         # 페이로드 메세지 구성
-        user_prompt = [
-            {"type": "text", "text": "이미지 분석 후 물품을 상세히 설명하는 대여 게시글을 작성하세요."}
-        ]
+        user_prompt = [{"type": "text", "text": "이미지 분석 후 물품을 상세히 설명하는 대여 게시글을 작성하세요."}]
         for b64img in base64_image:
             user_prompt.append(
                 {
@@ -68,11 +100,42 @@ class GenerateService:
             }
         }
 
-        # URL: 서버리스 버전. runsync로 동기처리.
+        # URL: runsync로 동기처리.
         target_url = f"https://api.runpod.ai/v2/{os.getenv('QWEN_ENDPOINT_ID')}/runsync"
 
         # Qwen 호출
         # url 변경, 임의 식별 키 -> 런팟 API 유저 고유 키, 타임아웃 시간 늘리기
+        try:
+            response = await self.client.post(
+                target_url,
+                headers={"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY')}"},
+                json=payload,
+                timeout=120,
+            )
+
+            response.raise_for_status()
+            result = response.json()
+            print(result)
+
+            if result.get("status") != "COMPLETED":
+                raise Exception(f"런팟 작업 실패: {result.get('error')}")
+
+            content_text = result.get("output")
+            return content_text
+
+        except httpx.HTTPStatusError as e:
+            if e.response.content:
+                error_detail = e.response.json()
+            else:
+                error_detail = "런팟 서버 오류"
+            raise HTTPException(
+                status_code=e.response.status_code, detail=error_detail
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"알 수 없는 오류: {str(e)}"
+            )
+        """
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
@@ -90,19 +153,7 @@ class GenerateService:
                     raise Exception(f"런팟 작업 실패: {result.get('error')}")
 
                 content_text = result.get("output")
-                # 병렬로 산정한 시세 여기서 계산
-                similar_prices = await price_task
-                recommend_price = int(sum(similar_prices) / len(similar_prices)) if similar_prices else 0
-                print(f"recommend price: {recommend_price}")
-
-                try:
-                    cleaned_json = extract_json(content_text)
-                    response_data = json.loads(cleaned_json)
-                    response_data["price"] = recommend_price
-                    return response_data
-                except json.JSONDecodeError:
-                    # 실패 -> JSON 파싱 에러
-                    raise Exception(f"JSON 파싱 실패. 원본 response: {content_text}")
+                return content_text
 
             except httpx.HTTPStatusError as e:
                 if e.response.content:
@@ -116,26 +167,6 @@ class GenerateService:
                 raise HTTPException(
                     status_code=500, detail=f"알 수 없는 오류: {str(e)}"
                 )
-
-    async def preprocess_image(self, file: UploadFile) -> str:
-        # 디코딩
-        image_data = await file.read()
-
-        image = Image.open(io.BytesIO(image_data))
-        # RGB 변환: png error 방지..
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-        # 리사이징 : 테스트 기반 640x640
-        image.thumbnail((640, 640))
-        # 바이너리 인코딩
-        image_buffer = io.BytesIO()
-        # 포맷,퀄리티는 성능따라 변동될 수 있음.
-        image.save(image_buffer, format="WEBP", quality=90)
-        # Base64 변환
-        resized_binary = image_buffer.getvalue()
-        base64_image = base64.b64encode(resized_binary).decode("UTF-8")
-
-        return base64_image
-
+        """
 def get_generate_service(qdrant_service = Depends(get_qdrant_service)):
     return GenerateService(qdrant_service=qdrant_service)

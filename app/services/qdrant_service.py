@@ -10,6 +10,7 @@ from qdrant_client.http import models
 from PIL import Image
 
 from app.schemas.embedding_schema import ItemUpsertRequest
+from app.schemas.recommend_schema import RecommendByItemRequest
 from app.services.embedding_service import get_embedding_service
 
 
@@ -34,12 +35,12 @@ class QdrantService:
             # S3
             try:
                 file_key = data.file_key
-                print(file_key)
                 s3_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_key)
                 image_data = s3_response["Body"].read()
             except ClientError as e:
                 error_code = e.response["Error"]["Code"]
                 if error_code == "NoSuchKey":
+                    print(f"S3에 해당 이미지가 존재하지 않습니다. file key: {file_key}")
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail={
@@ -130,12 +131,12 @@ class QdrantService:
                     "message": f"VectorDB 데이터 삭제 실패. reason: {str(e)}"}
             )
 
-    async def search_similar_price(self, image_data: bytes):
+    async def search_similar_price(self, image: Image.Image):
         # 이미지 벡터화
-        image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        #image = Image.open(io.BytesIO(image_data)).convert("RGB")
         image_vec = self.embedding_service.encode_image(image)
 
-        # 유사도 검색.
+        # 유사 물품 가격 찾기 (k=5): 그룹 구별 없는 전체 포스트 기준.
         try:
             search_result = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
@@ -161,6 +162,58 @@ class QdrantService:
         except Exception as e:
             print(f"Qdrant 서치 중 에러: {str(e)}")
             return []
+
+    async def recommend_item(self, data: RecommendByItemRequest):
+        try:
+            target_point = self.qdrant_client.retrieve(
+                collection_name=self.collection_name,
+                ids=[data.post_id],
+                with_payload=True
+            )
+            if not target_point:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "status": "retrieve failed",
+                        "message": f"요청 게시글 데이터를 찾을 수 없습니다. (post id:{data.post_id})"
+                    }
+                )
+            current_user = target_point[0].payload.get("user_id")
+            current_group = target_point[0].payload.get("group_id")
+            search_result = self.qdrant_client.query_points(
+                collection_name=self.collection_name,
+                prefetch=[
+                    models.Prefetch(query=data.post_id, using="dino_vec", score_threshold=0.7, limit=10),
+                    models.Prefetch(query=data.post_id, using="bingsu_vec", score_threshold=0.7, limit=10)
+                ],
+                # RRF
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                query_filter=models.Filter(
+                    must=[models.FieldCondition(key="group_id", match=models.MatchValue(value=current_group))],
+                    must_not=[models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user))]
+                ),
+                limit=8
+            )
+            recommendations = []
+            for hit in search_result.points:
+                print(hit)
+                recommendations.append(hit.id)
+
+            print(f"추천 게시글: {recommendations}")
+            return {"recommendations": recommendations}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "status": "recommend fail",
+                    "message": f"error. {str(e)}"
+                }
+            )
+
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None
