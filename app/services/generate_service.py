@@ -8,7 +8,6 @@ import re
 import httpx
 from fastapi import HTTPException, UploadFile, Depends
 from PIL import Image
-from torch.ao.quantization.backend_config.qnnpack import qnnpack_weight_qint8_neg_127_to_127_scale_min_2_neg_12
 
 from app.prompts.generate_prompt import GENERATE_POST_PROMPT
 from app.services.qdrant_service import get_qdrant_service
