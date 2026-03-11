@@ -26,7 +26,8 @@ class GenerateService:
         self.qdrant_service = qdrant_service
     async def generate_post(self, images: list[UploadFile]):
         # 썸네일 이미지로 시멘틱 서치(병렬)
-        thumbnail_image = await self.preprocess_image(images[0], is_thumbnail=True)
+        preprocess_thumbnail = await self.preprocess_image(images[0], is_thumbnail=True)
+        thumbnail_image = preprocess_thumbnail["image_obj"]
         price_task = asyncio.create_task(self.qdrant_service.search_similar_price(thumbnail_image))
 
         # 이미지 전처리 (썸네일 제외)
@@ -34,7 +35,9 @@ class GenerateService:
         preprocess_images = await asyncio.gather(*image_task)
 
         # 내용 생성용 이미지 합치기 (썸네일 + 나머지)
-        base64_images = thumbnail_image["Base64"] + [res["Base64"] for res in preprocess_images]
+        base64_images = [preprocess_thumbnail["Base64"]]
+        for res in preprocess_images:
+            base64_images.append(res["Base64"])
 
         # Qwen 호출 - 시세 검색 병렬 처리
         qwen_task = asyncio.create_task(self.call_qwen_vlm(base64_images))
