@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 from fastapi import HTTPException, status
 
 from fastapi.params import Depends
+from mpmath import scorergi
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from PIL import Image
@@ -281,8 +282,78 @@ class QdrantService:
                 detail={"status": "fail", "message": f"Qdrant 서버 오류: {str(e)}"}
             )
 
-    async def recommend_by_needs(selfself, data: RecommendByNeedsRequest):
-        return
+    async def recommend_by_needs(self, data: RecommendByNeedsRequest):
+        # 타겟 포인트
+        target_point = self.qdrant_client.retrieve(
+            collection_name="billage_needs",
+            ids=[data.user_id],
+            with_vectors=True,
+            with_payload=True
+        )
+        if not target_point:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "status": "retrieve failed",
+                    "message": f"요청 사용자 데이터를 찾을 수 없습니다. (user id:{data.user_id})"
+                }
+            )
+
+        group_id = target_point[0].payload["group_id"]
+        dino_vec = target_point[0].vector["dino_vec"]
+        bingsu_vec = target_point[0].vector["bingsu_vec"]
+
+        # 필터 정의
+        search_filter = models.Filter(
+            must=[models.FieldCondition(key="group_id", match=models.MatchValue(value=group_id))],
+            must_not=[models.FieldCondition(key="user_id", match=models.MatchValue(value=data.user_id))],
+        )
+
+        # 후보군
+        candidate = self.qdrant_client.query(
+            collection_name=self.collection_name,
+            query_vector = ("bingsu_vec", bingsu_vec),
+            query_filter=search_filter,
+            score_threshold=0.6,
+            #with_payload=True,
+            with_vectors=True,
+            limit=10
+        )
+
+        result = []
+        for item in candidate:
+            bingsu_score = item.score
+            # 이미지 벡터 -> 코사인 유사도 계산
+            if dino_vec and "dino_vec" in item.vector:
+                dino_score = cosine_similarity(dino_vec, item.vector["dino_vec"])
+            else:
+                dino_score = 0.5
+            # weight = 9:1
+            total_score =  (bingsu_score * 0.9) + (dino_score * 0.1)
+            result.append({ "id": item.id,
+                            "score": total_score,
+                            "payload": item.payload })
+
+        result.sort(key=lambda x: x["score"], reverse=True)
+        result_limit = 5
+        if len(result) < 5:
+            result_limit = len(result)
+        return result[:result_limit]
+
+def cosine_similarity(a, b):
+    # numpy 배열로 변환 : numpy 수식 쓸거라.
+    a = np.array(a)
+    b = np.array(b)
+
+    # dot product
+    dot_product = np.dot(a, b)
+    # normalize
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot_product / (norm_a * norm_b)
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None
