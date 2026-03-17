@@ -11,7 +11,7 @@ from qdrant_client.http import models
 from PIL import Image
 
 from app.schemas.embedding_schema import ItemUpsertRequest, NeedsUpsertRequest
-from app.schemas.recommend_schema import RecommendByItemRequest
+from app.schemas.recommend_schema import RecommendByItemRequest, RecommendByNeedsRequest
 from app.services.embedding_service import get_embedding_service
 
 
@@ -280,6 +280,9 @@ class QdrantService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={"status": "fail", "message": f"Qdrant 서버 오류: {str(e)}"}
             )
+
+    async def recommend_by_needs(selfself, data: RecommendByNeedsRequest):
+        return
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None

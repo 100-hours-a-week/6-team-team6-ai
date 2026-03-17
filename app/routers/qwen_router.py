@@ -66,3 +66,8 @@ async def recommend_item(data: recommend_schema.RecommendByItemRequest,
 async def upsert_needs(data: embedding_schema.NeedsUpsertRequest,
                        qdrant_service: QdrantService = Depends(get_qdrant_service)):
     return await qdrant_service.upsert_needs(data)
+
+@router.get("/needs/recommend", tags=["Recommend"], summary="니즈 기반 추천")
+async def recommend_needs(data: recommend_schema.RecommendByNeedsRequest,
+                          qdrant_service: QdrantService = Depends(get_qdrant_service)):
+    return await qdrant_service.recommend_by_needs(data)
