@@ -60,7 +60,7 @@ async def delete_item(post_id: int,
 @router.get("/items/recommend", tags=["Recommend"], summary="게시글 기반 추천")
 async def recommend_item(data: recommend_schema.RecommendByItemRequest,
                          qdrant_service: QdrantService = Depends(get_qdrant_service)):
-    return await qdrant_service.recommend_item(data)
+    return await qdrant_service.recommend_by_item(data)
 
 @router.post("/needs/upsert", tags=["Needs"], summary="벡터DB needs 저장")
 async def upsert_needs(data: embedding_schema.NeedsUpsertRequest,

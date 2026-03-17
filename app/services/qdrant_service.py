@@ -164,7 +164,7 @@ class QdrantService:
             print(f"Qdrant 서치 중 에러: {str(e)}")
             return []
 
-    async def recommend_item(self, data: RecommendByItemRequest):
+    async def recommend_by_item(self, data: RecommendByItemRequest):
         try:
             target_point = self.qdrant_client.retrieve(
                 collection_name=self.collection_name,
@@ -280,10 +280,6 @@ class QdrantService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={"status": "fail", "message": f"Qdrant 서버 오류: {str(e)}"}
             )
-
-
-
-
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None
