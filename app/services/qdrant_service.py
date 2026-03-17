@@ -1,6 +1,7 @@
 import io
 import os
 import boto3
+import numpy as np
 from botocore.exceptions import ClientError
 from fastapi import HTTPException, status
 
@@ -9,7 +10,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from PIL import Image
 
-from app.schemas.embedding_schema import ItemUpsertRequest
+from app.schemas.embedding_schema import ItemUpsertRequest, NeedsUpsertRequest
 from app.schemas.recommend_schema import RecommendByItemRequest
 from app.services.embedding_service import get_embedding_service
 
@@ -95,7 +96,7 @@ class QdrantService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "status": "fail",
-                    "message": "Qdrant 서버 오류: {str(e)}"
+                    "message": f"Qdrant 서버 오류: {str(e)}"
                 }
             )
 
@@ -213,6 +214,75 @@ class QdrantService:
                     "message": f"error. {str(e)}"
                 }
             )
+
+    async def upsert_needs(self, data: NeedsUpsertRequest):
+        if not data.recent_logs:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"status": "fail", "message": "recent logs not found"}
+            )
+
+        # 분기
+        click_image_list = []
+        click_text_list = []
+        search_list = []
+        try:
+            for log in data.recent_logs:
+                if log.type == "CLICK":
+                    target_post_id = int(log.content)
+                    target_point = self.qdrant_client.retrieve(
+                        collection_name=self.collection_name,
+                        ids = [target_post_id],
+                        with_vectors=True
+                    )
+                    click_image_list.append(target_point[0].vector["dino_vec"])
+                    click_text_list.append(target_point[0].vector["bingsu_vec"])
+                elif log.type == "SEARCH":
+                    target_vector = self.embedding_service.encode_text(log.content)
+                    search_list.append(np.array(target_vector) * 3)
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={ "status": "fail", "message": f"action error. action: {log.type}" }
+                    )
+            # 가중치 계산 + 저장
+            image_vec = np.mean(click_image_list, axis=0) if click_image_list else None
+            title_vec = np.sum(click_text_list, axis=0) if click_text_list else 0
+            keyword_vec = np.sum(search_list, axis=0)if search_list else 0
+
+            denominator = len(click_text_list) + len(search_list) * 3
+            text_vec = ((title_vec + keyword_vec) / denominator).tolist()
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={ "status": "fail", "message": f"error. {str(e)}" }
+            )
+        try:
+            self.qdrant_client.upsert(
+                collection_name="billage_needs",
+                points=[models.PointStruct(
+                    id=data.user_id,
+                    vector={
+                        "dino_vec": image_vec,
+                        "bingsu_vec": text_vec
+                    },
+                    payload={
+                        "user_id": data.user_id
+                    }
+                )]
+            )
+            print(f"VectorDB 데이터 저장 완료. User ID: {data.user_id}")
+            return {"status": "update", "user_id": data.user_id}
+        except Exception as e:
+            print(f"VectorDB 데이터 저장 실패. User ID: {data.user_id} \n reason: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"status": "fail", "message": f"Qdrant 서버 오류: {str(e)}"}
+            )
+
+
+
 
 
 # 서비스 객체 (전역변수)
