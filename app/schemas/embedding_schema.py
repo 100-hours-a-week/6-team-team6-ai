@@ -28,5 +28,5 @@ class UserLogs(BaseModel):
 
 class NeedsUpsertRequest(BaseModel):
     user_id: int
-    #group_id: int
+    group_id: int
     recent_logs: List[UserLogs]

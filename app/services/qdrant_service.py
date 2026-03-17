@@ -269,7 +269,8 @@ class QdrantService:
                         "bingsu_vec": text_vec
                     },
                     payload={
-                        "user_id": data.user_id
+                        "user_id": data.user_id,
+                        "group_id": data.group_id
                     }
                 )]
             )
@@ -315,7 +316,7 @@ class QdrantService:
             query_vector = ("bingsu_vec", bingsu_vec),
             query_filter=search_filter,
             score_threshold=0.6,
-            #with_payload=True,
+            with_payload=True,
             with_vectors=True,
             limit=10
         )
