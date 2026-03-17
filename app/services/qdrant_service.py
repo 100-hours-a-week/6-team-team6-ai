@@ -310,16 +310,22 @@ class QdrantService:
             must_not=[models.FieldCondition(key="user_id", match=models.MatchValue(value=data.user_id))],
         )
 
-        # 후보군
-        candidate = self.qdrant_client.query(
-            collection_name=self.collection_name,
-            query_vector = ("bingsu_vec", bingsu_vec),
-            query_filter=search_filter,
-            score_threshold=0.6,
-            with_payload=True,
-            with_vectors=True,
-            limit=10
-        )
+        try:
+            # 후보군
+            candidate = self.qdrant_client.query(
+                collection_name=self.collection_name,
+                query_vector = ("bingsu_vec", bingsu_vec),
+                query_filter=search_filter,
+                score_threshold=0.6,
+                with_payload=False,
+                with_vectors=True,
+                limit=10
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={ "status" : "recommend fail", "message": f"error. {str(e)}" }
+            )
 
         result = []
         for item in candidate:
@@ -331,15 +337,11 @@ class QdrantService:
                 dino_score = 0.5
             # weight = 9:1
             total_score =  (bingsu_score * 0.9) + (dino_score * 0.1)
-            result.append({ "id": item.id,
-                            "score": total_score,
-                            "payload": item.payload })
+            result.append({ "id": item.id, "score": total_score })
 
         result.sort(key=lambda x: x["score"], reverse=True)
-        result_limit = 5
-        if len(result) < 5:
-            result_limit = len(result)
-        return result[:result_limit]
+        result_ids = [item["id"] for item in result[:5]]
+        return { "recommendations" : result_ids }
 
 def cosine_similarity(a, b):
     # numpy 배열로 변환 : numpy 수식 쓸거라.
