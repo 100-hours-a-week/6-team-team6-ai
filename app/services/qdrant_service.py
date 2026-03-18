@@ -6,7 +6,6 @@ from botocore.exceptions import ClientError
 from fastapi import HTTPException, status
 
 from fastapi.params import Depends
-from mpmath import scorergi
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from PIL import Image
@@ -238,8 +237,12 @@ class QdrantService:
                     )
                     click_image_list.append(target_point[0].vector["dino_vec"])
                     click_text_list.append(target_point[0].vector["bingsu_vec"])
+                    print(f"DEBUG >> CLICK Item ID {target_post_id} Vector: {target_point[0].vector['bingsu_vec'][:3]}...")
+
                 elif log.type == "SEARCH":
                     target_vector = self.embedding_service.encode_text(log.content)
+                    print(f"DEBUG >> SEARCH Content: '{log.content}' -> First 3 values: {target_vector[:3]}")
+
                     search_list.append(np.array(target_vector) * 3)
                 else:
                     raise HTTPException(
@@ -247,7 +250,10 @@ class QdrantService:
                         detail={ "status": "fail", "message": f"action error. action: {log.type}" }
                     )
             # 가중치 계산 + 저장
-            image_vec = np.mean(click_image_list, axis=0) if click_image_list else None
+            if click_image_list:
+                image_vec = np.mean(click_image_list, axis=0).tolist()
+            else:
+                image_vec = np.zeros(1024).tolist()
             title_vec = np.sum(click_text_list, axis=0) if click_text_list else 0
             keyword_vec = np.sum(search_list, axis=0)if search_list else 0
 
@@ -312,11 +318,12 @@ class QdrantService:
 
         try:
             # 후보군
-            candidate = self.qdrant_client.query(
+            candidate = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
-                query_vector = ("bingsu_vec", bingsu_vec),
+                query=bingsu_vec,
+                using="bingsu_vec",
                 query_filter=search_filter,
-                score_threshold=0.6,
+                score_threshold=0.75,
                 with_payload=False,
                 with_vectors=True,
                 limit=10
@@ -328,10 +335,12 @@ class QdrantService:
             )
 
         result = []
-        for item in candidate:
+        for item in candidate.points:
             bingsu_score = item.score
+            print(f"item: {item.id}, bingsu_score: {bingsu_score} ")
             # 이미지 벡터 -> 코사인 유사도 계산
-            if dino_vec and "dino_vec" in item.vector:
+            is_dino_zero = not np.any(dino_vec)
+            if not is_dino_zero and "dino_vec" in item.vector and item.vector["dino_vec"]:
                 dino_score = cosine_similarity(dino_vec, item.vector["dino_vec"])
             else:
                 dino_score = 0.5
@@ -340,6 +349,7 @@ class QdrantService:
             result.append({ "id": item.id, "score": total_score })
 
         result.sort(key=lambda x: x["score"], reverse=True)
+        print(result[:5])
         result_ids = [item["id"] for item in result[:5]]
         return { "recommendations" : result_ids }
 
