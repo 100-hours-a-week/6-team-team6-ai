@@ -4,6 +4,6 @@ from pydantic import BaseModel
 class RecommendByItemRequest(BaseModel):
     post_id: int
 
-# OLAP 기반
+# 사용자 기반
 class RecommendByNeedsRequest(BaseModel):
     user_id: int
