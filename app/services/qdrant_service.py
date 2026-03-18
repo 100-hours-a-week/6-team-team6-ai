@@ -1,0 +1,227 @@
+import io
+import os
+import boto3
+from botocore.exceptions import ClientError
+from fastapi import HTTPException, status
+
+from fastapi.params import Depends
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
+from PIL import Image
+
+from app.schemas.embedding_schema import ItemUpsertRequest
+from app.schemas.recommend_schema import RecommendByItemRequest
+from app.services.embedding_service import get_embedding_service
+
+
+class QdrantService:
+    def __init__(self, embedding_service):
+        self.embedding_service = embedding_service
+        # VectorDB setting
+        self.qdrant_client = QdrantClient(url=os.getenv("QDRANT_URL"),
+                                          api_key=os.getenv("QDRANT_API_KEY", None))
+        self.collection_name = "billage_items"
+        # S3 setting
+        self.s3_client = boto3.client(
+            "s3",
+            aws_access_key_id = os.getenv('AWS_ACCESS_KEY'),
+            aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY'),
+            region_name = os.getenv('AWS_REGION_NAME'),
+        )
+        self.bucket_name = os.getenv('S3_BUCKET_NAME')
+
+    async def upsert_item(self, data: ItemUpsertRequest):
+        try:
+            # S3
+            try:
+                file_key = data.file_key
+                s3_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_key)
+                image_data = s3_response["Body"].read()
+            except ClientError as e:
+                error_code = e.response["Error"]["Code"]
+                if error_code == "NoSuchKey":
+                    print(f"S3에 해당 이미지가 존재하지 않습니다. file key: {file_key}")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={
+                            "status": "fail",
+                            "message": f"S3에 해당 이미지가 존재하지 않습니다. file key: {file_key}"
+                        }
+                    )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={
+                        "status": "fail",
+                        "message": f"S3 통신 오류 발생: {str(e)}"
+                    }
+                )
+            image = Image.open(io.BytesIO(image_data)).convert("RGB")
+            dino_vec = self.embedding_service.encode_image(image)
+
+            post_title = data.title
+            bingsu_vec = self.embedding_service.encode_text(post_title)
+
+            # 가격 -> 시간 단위로 보정
+            item_price = data.price
+            if data.price_unit == "DAY":
+                item_price = int(item_price / 24)
+            payload = {
+                "user_id": data.user_id,
+                "group_id": data.group_id,
+                "post_id": data.post_id,
+                "price": item_price
+            }
+            # 저장
+            self.qdrant_client.upsert(
+                collection_name=self.collection_name,
+                points=[
+                    models.PointStruct(
+                        id=data.post_id,
+                        vector={
+                            "dino_vec": dino_vec,
+                            "bingsu_vec": bingsu_vec
+                        },
+                        payload=payload
+                    )
+                ]
+            )
+            print(f"VectorDB 데이터 저장 완료. Post ID: {data.post_id}")
+            return {"status": "success"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"VectorDB 데이터 저장 실패. Post ID: {data.post_id} \n reason: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "status": "fail",
+                    "message": "Qdrant 서버 오류: {str(e)}"
+                }
+            )
+
+    async def delete_item(self, post_id: int):
+        try:
+            existing_point = self.qdrant_client.retrieve(
+                collection_name=self.collection_name,
+                ids=[post_id]
+            )
+            if not existing_point:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "status": "fail",
+                        "message": f"VectorDB 데이터 삭제 실패. reason: 삭제할 데이터를 찾을 수 없습니다. (post id: {post_id})"
+                    }
+                )
+
+            self.qdrant_client.delete(
+                collection_name=self.collection_name,
+                points_selector=models.PointIdsList(points=[post_id])
+            )
+            print(f"VectorDB 데이터 삭제 완료. Post ID: {post_id}")
+            return {"status": "deleted", "post_id": post_id}
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"VectorDB 데이터 삭제 실패. Post Id: {post_id} \n reason: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "status": "fail",
+                    "message": f"VectorDB 데이터 삭제 실패. reason: {str(e)}"}
+            )
+
+    async def search_similar_price(self, image: Image.Image):
+        # 이미지 벡터화
+        #image = Image.open(io.BytesIO(image_data)).convert("RGB")
+        image_vec = self.embedding_service.encode_image(image)
+
+        # 유사 물품 가격 찾기 (k=5): 그룹 구별 없는 전체 포스트 기준.
+        try:
+            search_result = self.qdrant_client.query_points(
+                collection_name=self.collection_name,
+                query=image_vec,
+                using="dino_vec",
+                # 조정 가능성 o
+                score_threshold=0.7,
+                limit=5,
+                with_payload=True
+            )
+
+            prices = []
+            for hit in search_result.points:
+                if hit.payload and hit.payload.get("price") is not None:
+                    try:
+                        print(f"similar item: {hit.payload}")
+                        prices.append(int(hit.payload.get("price")))
+                    except (ValueError, TypeError):
+                        continue
+                else:
+                    print("유사 물건 없음.")
+            return prices
+        except Exception as e:
+            print(f"Qdrant 서치 중 에러: {str(e)}")
+            return []
+
+    async def recommend_item(self, data: RecommendByItemRequest):
+        try:
+            target_point = self.qdrant_client.retrieve(
+                collection_name=self.collection_name,
+                ids=[data.post_id],
+                with_payload=True
+            )
+            if not target_point:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail={
+                        "status": "retrieve failed",
+                        "message": f"요청 게시글 데이터를 찾을 수 없습니다. (post id:{data.post_id})"
+                    }
+                )
+            current_user = target_point[0].payload.get("user_id")
+            current_group = target_point[0].payload.get("group_id")
+            search_result = self.qdrant_client.query_points(
+                collection_name=self.collection_name,
+                prefetch=[
+                    models.Prefetch(query=data.post_id, using="dino_vec", score_threshold=0.7, limit=10),
+                    models.Prefetch(query=data.post_id, using="bingsu_vec", score_threshold=0.7, limit=10)
+                ],
+                # RRF
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                query_filter=models.Filter(
+                    must=[models.FieldCondition(key="group_id", match=models.MatchValue(value=current_group))],
+                    must_not=[models.FieldCondition(key="user_id", match=models.MatchValue(value=current_user))]
+                ),
+                limit=8
+            )
+            recommendations = []
+            for hit in search_result.points:
+                print(hit)
+                recommendations.append(hit.id)
+
+            print(f"추천 게시글: {recommendations}")
+            return {"recommendations": recommendations}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "status": "recommend fail",
+                    "message": f"error. {str(e)}"
+                }
+            )
+
+
+# 서비스 객체 (전역변수)
+_qdrant_service = None
+
+def get_qdrant_service(
+    embed_service = Depends(get_embedding_service)
+):
+    global _qdrant_service
+    if _qdrant_service is None:
+        _qdrant_service = QdrantService(embedding_service=embed_service)
+    return _qdrant_service

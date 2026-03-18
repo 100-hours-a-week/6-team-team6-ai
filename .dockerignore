@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.venv
+env
+__pycache__
+*.pyc
+.env
+.DS_Store
+*.log
+serverless
+test.md
+.dockerignore
