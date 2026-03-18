@@ -25,7 +25,14 @@ class EmbeddingService:
         with torch.no_grad():
             bingsu_input = self.bingsu_processor(text=text, return_tensors="pt").to(self.device)
             bingsu_outputs = self.bingsu.get_text_features(**bingsu_input)
-            bingsu_vec = bingsu_outputs[0][0, 0, :768].cpu().numpy().tolist()
+            #bingsu_vec = bingsu_outputs[0][0, 0, :768].cpu().numpy().tolist()
+            if torch.is_tensor(bingsu_outputs):
+                bingsu_vec = bingsu_outputs[0].cpu().numpy().tolist()
+            else:
+                bingsu_vec = bingsu_outputs.pooler_output[0].flatten().cpu().numpy().tolist()
+
+            if isinstance(bingsu_vec[0], list):
+                bingsu_vec = bingsu_vec[0]
         return bingsu_vec
 
 embedding_service = None
