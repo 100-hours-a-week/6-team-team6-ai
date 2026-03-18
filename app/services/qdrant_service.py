@@ -1,6 +1,7 @@
 import io
 import os
 import boto3
+import numpy as np
 from botocore.exceptions import ClientError
 from fastapi import HTTPException, status
 
@@ -9,8 +10,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from PIL import Image
 
-from app.schemas.embedding_schema import ItemUpsertRequest
-from app.schemas.recommend_schema import RecommendByItemRequest
+from app.schemas.embedding_schema import ItemUpsertRequest, NeedsUpsertRequest
+from app.schemas.recommend_schema import RecommendByItemRequest, RecommendByNeedsRequest
 from app.services.embedding_service import get_embedding_service
 
 
@@ -95,7 +96,7 @@ class QdrantService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={
                     "status": "fail",
-                    "message": "Qdrant 서버 오류: {str(e)}"
+                    "message": f"Qdrant 서버 오류: {str(e)}"
                 }
             )
 
@@ -163,7 +164,7 @@ class QdrantService:
             print(f"Qdrant 서치 중 에러: {str(e)}")
             return []
 
-    async def recommend_item(self, data: RecommendByItemRequest):
+    async def recommend_by_item(self, data: RecommendByItemRequest):
         try:
             target_point = self.qdrant_client.retrieve(
                 collection_name=self.collection_name,
@@ -214,6 +215,158 @@ class QdrantService:
                 }
             )
 
+    async def upsert_needs(self, data: NeedsUpsertRequest):
+        if not data.recent_logs:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"status": "fail", "message": "recent logs not found"}
+            )
+
+        # 분기
+        click_image_list = []
+        click_text_list = []
+        search_list = []
+        try:
+            for log in data.recent_logs:
+                if log.type == "CLICK":
+                    target_post_id = int(log.content)
+                    target_point = self.qdrant_client.retrieve(
+                        collection_name=self.collection_name,
+                        ids = [target_post_id],
+                        with_vectors=True
+                    )
+                    click_image_list.append(target_point[0].vector["dino_vec"])
+                    click_text_list.append(target_point[0].vector["bingsu_vec"])
+                    print(f"DEBUG >> CLICK Item ID {target_post_id} Vector: {target_point[0].vector['bingsu_vec'][:3]}...")
+
+                elif log.type == "SEARCH":
+                    target_vector = self.embedding_service.encode_text(log.content)
+                    print(f"DEBUG >> SEARCH Content: '{log.content}' -> First 3 values: {target_vector[:3]}")
+
+                    search_list.append(np.array(target_vector) * 3)
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail={ "status": "fail", "message": f"action error. action: {log.type}" }
+                    )
+            # 가중치 계산 + 저장
+            if click_image_list:
+                image_vec = np.mean(click_image_list, axis=0).tolist()
+            else:
+                image_vec = np.zeros(1024).tolist()
+            title_vec = np.sum(click_text_list, axis=0) if click_text_list else 0
+            keyword_vec = np.sum(search_list, axis=0)if search_list else 0
+
+            denominator = len(click_text_list) + len(search_list) * 3
+            text_vec = ((title_vec + keyword_vec) / denominator).tolist()
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={ "status": "fail", "message": f"error. {str(e)}" }
+            )
+        try:
+            self.qdrant_client.upsert(
+                collection_name="billage_needs",
+                points=[models.PointStruct(
+                    id=data.user_id,
+                    vector={
+                        "dino_vec": image_vec,
+                        "bingsu_vec": text_vec
+                    },
+                    payload={
+                        "user_id": data.user_id,
+                        "group_id": data.group_id
+                    }
+                )]
+            )
+            print(f"VectorDB 데이터 저장 완료. User ID: {data.user_id}")
+            return {"status": "update", "user_id": data.user_id}
+        except Exception as e:
+            print(f"VectorDB 데이터 저장 실패. User ID: {data.user_id} \n reason: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={"status": "fail", "message": f"Qdrant 서버 오류: {str(e)}"}
+            )
+
+    async def recommend_by_needs(self, data: RecommendByNeedsRequest):
+        # 타겟 포인트
+        target_point = self.qdrant_client.retrieve(
+            collection_name="billage_needs",
+            ids=[data.user_id],
+            with_vectors=True,
+            with_payload=True
+        )
+        if not target_point:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "status": "retrieve failed",
+                    "message": f"요청 사용자 데이터를 찾을 수 없습니다. (user id:{data.user_id})"
+                }
+            )
+
+        group_id = target_point[0].payload["group_id"]
+        dino_vec = target_point[0].vector["dino_vec"]
+        bingsu_vec = target_point[0].vector["bingsu_vec"]
+
+        # 필터 정의
+        search_filter = models.Filter(
+            must=[models.FieldCondition(key="group_id", match=models.MatchValue(value=group_id))],
+            must_not=[models.FieldCondition(key="user_id", match=models.MatchValue(value=data.user_id))],
+        )
+
+        try:
+            # 후보군
+            candidate = self.qdrant_client.query_points(
+                collection_name=self.collection_name,
+                query=bingsu_vec,
+                using="bingsu_vec",
+                query_filter=search_filter,
+                score_threshold=0.75,
+                with_payload=False,
+                with_vectors=True,
+                limit=10
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={ "status" : "recommend fail", "message": f"error. {str(e)}" }
+            )
+
+        result = []
+        for item in candidate.points:
+            bingsu_score = item.score
+            print(f"item: {item.id}, bingsu_score: {bingsu_score} ")
+            # 이미지 벡터 -> 코사인 유사도 계산
+            is_dino_zero = not np.any(dino_vec)
+            if not is_dino_zero and "dino_vec" in item.vector and item.vector["dino_vec"]:
+                dino_score = cosine_similarity(dino_vec, item.vector["dino_vec"])
+            else:
+                dino_score = 0.5
+            # weight = 9:1
+            total_score =  (bingsu_score * 0.9) + (dino_score * 0.1)
+            result.append({ "id": item.id, "score": total_score })
+
+        result.sort(key=lambda x: x["score"], reverse=True)
+        print(result[:5])
+        result_ids = [item["id"] for item in result[:5]]
+        return { "recommendations" : result_ids }
+
+def cosine_similarity(a, b):
+    # numpy 배열로 변환 : numpy 수식 쓸거라.
+    a = np.array(a)
+    b = np.array(b)
+
+    # dot product
+    dot_product = np.dot(a, b)
+    # normalize
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot_product / (norm_a * norm_b)
 
 # 서비스 객체 (전역변수)
 _qdrant_service = None
