@@ -1,3 +1,4 @@
+ARG CACHE_BUST=20260321_v2
 FROM runpod/worker-v1-vllm:v2.11.3
 WORKDIR /
 
