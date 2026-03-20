@@ -15,6 +15,7 @@ ENV HF_TOKEN=${HF_TOKEN}
 CMD python3 -m vllm.entrypoints.openai.api_server \
     --model resfebel/billage-guard-v2-4bit \
     --quantization bitsandbytes \
+    --load-format bitsandbytes \
     --trust-remote-code \
     --dtype bfloat16 \
     --max-model-len 4096 \
