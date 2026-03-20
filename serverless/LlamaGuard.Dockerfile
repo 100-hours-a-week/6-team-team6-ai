@@ -10,7 +10,6 @@ COPY . .
 
 ENV HF_TOKEN=${HF_TOKEN}
 
-# 빌리지 보안관 v2-4bit 전용 설정
 CMD python3 -m vllm.entrypoints.openai.api_server \
     --model resfebel/billage-guard-v2-4bit \
     --quantization bitsandbytes \
