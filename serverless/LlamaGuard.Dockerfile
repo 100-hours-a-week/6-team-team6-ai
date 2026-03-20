@@ -2,7 +2,7 @@ FROM runpod/worker-v1-vllm:v2.11.3
 WORKDIR /
 
 COPY requirements.txt .
-# [중요] bitsandbytes 라이브러리가 도커 내에 반드시 설치되어 있어야 합니다.
+
 RUN pip3 install --no-cache-dir -U pip && \
     pip3 install --no-cache-dir -r requirements.txt
 
