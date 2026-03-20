@@ -11,6 +11,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 COPY . .
 
 ENV HF_TOKEN=${HF_TOKEN}
+ENV VLLM_NIGHTLY=true
 
 CMD python3 -m vllm.entrypoints.openai.api_server \
     --model resfebel/billage-guard-v2-4bit \
