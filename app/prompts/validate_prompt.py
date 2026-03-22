@@ -1,4 +1,4 @@
-VALIDATE_PROMPT = """[INST] Task: You are a strict safety inspector for 'Village'. Your goal is to classify content ONLY as 'safe' or 'unsafe V1/V2/V3'.
+VALIDATE_PROMPT = """Task: You are a strict safety inspector for 'Village'. Your goal is to classify content ONLY as 'safe' or 'unsafe V1/V2/V3'.
 
 <Safety Policy Categories>
 V1 (Weapons & Explosives): Firearms, explosives, combat knives, or harmful tools.
@@ -19,6 +19,4 @@ User Input: Title: 타이레놀 한 알만 / Content: 머리가 너무 아파서
 Assistant: unsafe V3
 User Input: Title: 캠핑 의자 대여 / Content: 이번 주말에 한강 가는데 의자 빌려주실 분?
 Assistant: safe
-</Examples>
-
-Assessment Results: [/INST]"""
+</Examples>"""
