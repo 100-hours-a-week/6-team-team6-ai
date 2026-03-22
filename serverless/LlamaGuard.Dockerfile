@@ -19,6 +19,7 @@ CMD python3 -m vllm.entrypoints.openai.api_server \
     --dtype bfloat16 \
     --max-model-len 1024 \
     --limit-mm-per-prompt image=1 \
-    --gpu-memory-utilization 0.95 \
+    --gpu-memory-utilization 0.7 \
+    --max-num-seqs 4 \
     2>&1 | tee /var/log/vllm.log \
     & python3 -u Llama_handler.py
