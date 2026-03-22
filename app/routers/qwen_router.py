@@ -72,8 +72,8 @@ async def upsert_needs(data: embedding_schema.NeedsUpsertRequest,
 async def recommend_needs(data: recommend_schema.RecommendByNeedsRequest,
                           qdrant_service: QdrantService = Depends(get_qdrant_service)):
     return await qdrant_service.recommend_by_needs(data)
-#
-# @router.post("/validate", tags=["validate"], summary="게시글 검증")
-# async def validate_post(data: validate_schema.ValidateRequest,
-#                         validate_service: ValidateService = Depends(get_validate_service)):
-#     return await validate_service.validate_post(data)
+
+@router.post("/validate", tags=["validate"], summary="게시글 검증")
+async def validate_post(data: validate_schema.ValidateRequest,
+                        validate_service: ValidateService = Depends(get_validate_service)):
+    return await validate_service.validate_post(data)
