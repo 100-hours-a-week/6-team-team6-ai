@@ -5,16 +5,18 @@ import httpx
 import runpod
 
 
-VLLM_API_KEY = os.environ.get("VLLM_API_KEY")
+VLLM_API_KEY = os.environ.get("VLLM_API_KEY", "")
 
 # 엔진 준비 확인
 async def wait_for_vllm():
     async with httpx.AsyncClient() as client:
-        headers = {"Authorization": f"Bearer {VLLM_API_KEY}"}
+        headers = {"Authorization": f"Bearer {VLLM_API_KEY}"} if VLLM_API_KEY else {}
         while True:
             try:
                 response = await client.get(
-                    "http://127.0.0.1:8000/v1/models", headers=headers, timeout=1.0
+                    #"http://127.0.0.1:8000/v1/models",
+                    "http://127.0.0.1:8000/health",
+                    headers=headers, timeout=1.0
                 )
                 if response.status_code == 200:
                     print("vLLM 엔진이 성공적으로 준비되었습니다!", flush=True)
@@ -31,7 +33,7 @@ asyncio.run(wait_for_vllm())
 async def handler(job):
     print("Llama 핸들러 호출 완료")
     job_input = job.get("input", {})
-    headers = {"Authorization": f"Bearer {VLLM_API_KEY}"}
+    headers = {"Authorization": f"Bearer {VLLM_API_KEY}"} if VLLM_API_KEY else {}
 
     async with httpx.AsyncClient() as client:
         try:
@@ -53,13 +55,8 @@ async def handler(job):
 
                 if "unsafe" in validate_output:
                     output_parts = validate_output.split()
-
                     policy_code = output_parts[-1] if len(output_parts) > 1 else "safe"
-
-                    return {
-                        "is_safe" : "unsafe",
-                        "policy_code" : policy_code
-                    }
+                    return { "is_safe" : "unsafe", "policy_code" : policy_code}
                 else:
                     return { "is_safe" : "safe" }
 
@@ -68,7 +65,6 @@ async def handler(job):
 
         except Exception as e:
             return {"error": f"vLLM Proxy 에러: {e}"}
-
 
 if __name__ == "__main__":
     runpod.serverless.start({"handler": handler})

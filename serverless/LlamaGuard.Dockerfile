@@ -1,20 +1,18 @@
-ARG CACHE_BUST=20260321_v4
+ARG CACHE_BUST=20260322_v1
 FROM runpod/worker-v1-vllm:v2.11.3
 WORKDIR /
 
 COPY requirements.txt .
 
 RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir --upgrade -r requirements.txt && \
-    python3 -c "import transformers; print('### transformers version:', transformers.__version__)"
+    pip3 install --no-cache-dir --force-reinstall -r requirements.txt
 
 COPY . .
 
 ENV HF_TOKEN=${HF_TOKEN}
-#ENV VLLM_NIGHTLY=true
 
 CMD python3 -m vllm.entrypoints.openai.api_server \
-    --model resfebel/billage-guard-v2-4bit \
+    --model resfebel/billage-guard-v3-4bit \
     --quantization bitsandbytes \
     --load-format bitsandbytes \
     --trust-remote-code \
