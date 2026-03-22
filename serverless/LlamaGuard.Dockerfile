@@ -11,7 +11,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
 COPY . .
 
 ENV HF_TOKEN=${HF_TOKEN}
-ENV VLLM_NIGHTLY=true
+#ENV VLLM_NIGHTLY=true
 
 CMD python3 -m vllm.entrypoints.openai.api_server \
     --model resfebel/billage-guard-v2-4bit \
@@ -20,7 +20,7 @@ CMD python3 -m vllm.entrypoints.openai.api_server \
     --trust-remote-code \
     --dtype bfloat16 \
     --max-model-len 4096 \
-    --limit-mm-per-prompt '{"image":1}' \
+    --limit-mm-per-prompt image=1 \
     --gpu-memory-utilization 0.9 \
     2>&1 | tee /var/log/vllm.log \
     & python3 -u Llama_handler.py
