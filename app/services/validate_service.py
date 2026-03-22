@@ -40,7 +40,7 @@ class ValidateService:
                                          "message": f"s3 통신 오류 발생: {str(e)}" })
         # resize
         image = Image.open(io.BytesIO(image_data)).convert('RGB')
-        image.thumbnail((224, 224))
+        image = image.resize((448, 448))
         # binary
         image_buffer = io.BytesIO()
         image.save(image_buffer, format="WEBP", quality=75)
@@ -48,15 +48,16 @@ class ValidateService:
         resized_image = image_buffer.getvalue()
         base64_image = base64.b64encode(resized_image).decode("utf-8")
 
-        result = await self.call_llama(base64_image)
+        result = await self.call_llama(base64_image, data.title, data.content)
         return result
 
-    async def call_llama(self, base64_image: str):
-        user_prompt = [{"type": "text", "text": VALIDATE_PROMPT},
-                       {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]
+    async def call_llama(self, base64_image: str, title: str, content: str):
+        user_input = f"Title: {title} / Content: {content}"
+        user_prompt = [{"type": "image_url", "image_url": {"url": f"data:image/webp;base64,{base64_image}"}},
+                       {"type": "text", "text": VALIDATE_PROMPT + f"\nUser Input: {user_input}"}]
         payload = {
             "input": {
-                "model": "resfebel/billage-guard-v2-4bit",
+                "model": "resfebel/billage-guard-v3-4bit",
                 "messages": [
                     { "role": "user", "content": user_prompt}
                 ],
