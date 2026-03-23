@@ -1,8 +1,8 @@
 FROM runpod/worker-v1-vllm:v2.11.3
 WORKDIR /
 
-COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+COPY Llama_requirements.txt .
+RUN pip3 install --no-cache-dir -r Llama_requirements.txt
 COPY . .
 
 ENV HF_TOKEN=${HF_TOKEN}

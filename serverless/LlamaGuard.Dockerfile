@@ -2,10 +2,10 @@ ARG CACHE_BUST=20260322_v3
 FROM runpod/worker-v1-vllm:v2.11.3
 WORKDIR /
 
-COPY requirements.txt .
+COPY Llama_requirements.txt .
 
 RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 install --no-cache-dir --force-reinstall -r requirements.txt
+    pip3 install --no-cache-dir --force-reinstall -r Llama_requirements.txt
 
 COPY . .
 
