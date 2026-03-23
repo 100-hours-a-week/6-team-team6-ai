@@ -11,7 +11,7 @@ CMD python3 -m vllm.entrypoints.openai.api_server \
     --model Qwen/Qwen2.5-VL-7B-Instruct \
     --max-model-len 4096 \
     --enforce-eager \
-    --limit-mm-per-prompt image=5 \
+    --limit-mm-per-prompt '{"image":5}' \
     --gpu-memory-utilization 0.9 \
-    --no-enable-prefix-caching \
+    --enable-prefix-caching false \
     & python3 -u handler.py
