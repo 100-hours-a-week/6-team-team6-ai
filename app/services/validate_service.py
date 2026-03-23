@@ -25,7 +25,7 @@ class ValidateService:
     async def validate_post(self, data: ValidateRequest):
         # s3
         try:
-            file_key = data.image
+            file_key = data.images[0]
             s3_response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_key)
             image_data = s3_response['Body'].read()
         except ClientError as e:
