@@ -4,9 +4,10 @@ from typing import List
 import httpx
 from fastapi import APIRouter, File, UploadFile, status, Form, Depends, HTTPException
 
-from app.schemas import generate_schema, embedding_schema, recommend_schema
+from app.schemas import generate_schema, embedding_schema, recommend_schema, validate_schema
 from app.services.generate_service import GenerateService, get_generate_service
-from app.services.qdrant_service import get_qdrant_service, QdrantService
+from app.services.qdrant_service import QdrantService, get_qdrant_service
+from app.services.validate_service import ValidateService, get_validate_service
 
 router = APIRouter(
     prefix="/ai"
@@ -52,12 +53,27 @@ async def upsert_item(data: embedding_schema.ItemUpsertRequest,
     return await qdrant_service.upsert_item(data)
 
 
-@router.delete("/items/{post_id}", tags=["Items"], summary="벡터DB 삭제")
+@router.delete("/items/{post_id}", tags=["Items"], summary="벡터DB items 삭제")
 async def delete_item(post_id: int,
                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
     return await qdrant_service.delete_item(post_id)
 
-@router.get("/items/recommend", tags=["Recommend"], summary="게시글 기반 추천")
+@router.post("/items/recommend", tags=["Recommend"], summary="게시글 기반 추천")
 async def recommend_item(data: recommend_schema.RecommendByItemRequest,
                          qdrant_service: QdrantService = Depends(get_qdrant_service)):
-    return await qdrant_service.recommend_item(data)
+    return await qdrant_service.recommend_by_item(data)
+
+@router.post("/needs/upsert", tags=["Needs"], summary="벡터DB needs 저장")
+async def upsert_needs(data: embedding_schema.NeedsUpsertRequest,
+                       qdrant_service: QdrantService = Depends(get_qdrant_service)):
+    return await qdrant_service.upsert_needs(data)
+
+@router.post("/needs/recommend", tags=["Recommend"], summary="니즈 기반 추천")
+async def recommend_needs(data: recommend_schema.RecommendByNeedsRequest,
+                          qdrant_service: QdrantService = Depends(get_qdrant_service)):
+    return await qdrant_service.recommend_by_needs(data)
+
+@router.post("/validate", tags=["validate"], summary="게시글 검증")
+async def validate_post(data: validate_schema.ValidateRequest,
+                        validate_service: ValidateService = Depends(get_validate_service)):
+    return await validate_service.validate_post(data)
